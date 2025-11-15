@@ -32,6 +32,7 @@
 
           # Common build utils
           buildUtils = with pkgs; [
+            buf
             prettier
           ];
         in

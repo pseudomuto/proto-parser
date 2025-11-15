@@ -1,0 +1,50 @@
+syntax = "proto3";
+
+package api.common.v1;
+
+import "google/protobuf/timestamp.proto";
+
+// Common status enum used across services
+enum Status {
+  UNKNOWN = 0;
+  ACTIVE = 1;
+  INACTIVE = 2;
+  PENDING = 3;
+  SUSPENDED = 4;
+}
+
+// Common address structure
+message Address {
+  string street = 1;
+  string city = 2;
+  string state = 3;
+  string postal_code = 4;
+  string country = 5;
+}
+
+// Pagination request
+message PageRequest {
+  int32 page_size = 1;
+  string page_token = 2;
+}
+
+// Pagination response
+message PageResponse {
+  string next_page_token = 1;
+  int32 total_count = 2;
+}
+
+// Metadata common to many entities
+message Metadata {
+  google.protobuf.Timestamp created_at = 1;
+  google.protobuf.Timestamp updated_at = 2;
+  string created_by = 3;
+  string updated_by = 4;
+  map<string, string> labels = 5;
+}
+
+// Money representation
+message Money {
+  string currency_code = 1;
+  int64 amount_micros = 2;
+}

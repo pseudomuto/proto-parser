@@ -1,0 +1,81 @@
+syntax = "proto3";
+
+package api.user.v1;
+
+import "api/common/v1/types.proto";
+import "api/user/v1/user.proto";
+import "google/protobuf/empty.proto";
+import "google/protobuf/field_mask.proto";
+
+// User management service (replaces UserService from simple.proto with same method signatures)
+service UserService {
+  // Get a user by ID (matches original simple.proto)
+  rpc GetUser(GetUserRequest) returns (GetUserResponse);
+
+  // List users with pagination (matches original simple.proto)
+  rpc ListUsers(ListUsersRequest) returns (ListUsersResponse);
+
+  // Create a new user (matches original simple.proto)
+  rpc CreateUser(User) returns (User);
+
+  // Update an existing user
+  rpc UpdateUser(UpdateUserRequest) returns (User);
+
+  // Delete a user
+  rpc DeleteUser(DeleteUserRequest) returns (google.protobuf.Empty);
+
+  // Stream users (matches original simple.proto streaming pattern)
+  rpc StreamUsers(ListUsersRequest) returns (stream User);
+
+  // Search users with pagination
+  rpc SearchUsers(SearchUsersRequest) returns (ListUsersResponse);
+}
+
+// Request message for getting a user by ID
+message GetUserRequest {
+  int32 id = 1;
+}
+
+// Response message for getting a user
+message GetUserResponse {
+  User user = 1;
+}
+
+// Request message for listing users (matches original simple.proto)
+message ListUsersRequest {
+  int32 limit = 1;
+  int32 offset = 2;
+  string filter = 3;
+  api.common.v1.PageRequest page = 4;
+}
+
+// Response message for listing users (matches original simple.proto)
+message ListUsersResponse {
+  repeated User users = 1;
+  int32 total = 2;
+  api.common.v1.PageResponse page = 3;
+}
+
+// Request message for creating a user
+message CreateUserRequest {
+  User user = 1;
+  string password = 2;
+}
+
+// Request message for updating a user
+message UpdateUserRequest {
+  User user = 1;
+  google.protobuf.FieldMask update_mask = 2;
+}
+
+// Request message for deleting a user
+message DeleteUserRequest {
+  int32 id = 1;
+}
+
+// Request for user search
+message SearchUsersRequest {
+  string query = 1;
+  api.common.v1.PageRequest page = 2;
+}
+
