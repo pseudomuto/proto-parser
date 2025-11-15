@@ -1,0 +1,27 @@
+# macOS
+.DS_Store
+
+# Logs
+logs
+*.log
+npm-debug.log*
+
+# Coverage directory generated when running tests with coverage
+coverage
+
+# Dependencies
+node_modules/
+package-lock.json
+
+# dotenv environment variables file
+.direnv/
+.envrc
+.env
+.env.test
+
+# Build output
+dist/
+dist-types/
+
+# Temporary change files created by Vim
+*.swp

@@ -1,0 +1,33 @@
+syntax = "proto3";
+
+package nested.example;
+
+message OuterMessage {
+  string outer_field = 1;
+
+  message MiddleMessage {
+    string middle_field = 1;
+
+    message InnerMessage {
+      string inner_field = 1;
+      InnerEnum inner_enum = 2;
+    }
+
+    enum InnerEnum {
+      OPTION_UNKNOWN = 0;
+      OPTION_A = 1;
+      OPTION_B = 2;
+    }
+
+    InnerMessage inner_msg = 2;
+  }
+
+  enum OuterEnum {
+    OUTER_UNKNOWN = 0;
+    OUTER_ONE = 1;
+    OUTER_TWO = 2;
+  }
+
+  MiddleMessage middle_msg = 2;
+  OuterEnum outer_enum = 3;
+}
