@@ -9,10 +9,12 @@ A TypeScript library for parsing Protocol Buffer (.proto) files, extracting mess
 ## Features
 
 - 🔍 **Parse from files or strings** - Load proto definitions from file paths or raw content
+- 📁 **Directory parsing** - Parse all .proto files in a directory recursively
 - 🔄 **Async and sync APIs** - Choose between promise-based or blocking operations
 - 🎯 **Complete parsing** - Extract messages, services, enums, oneofs, extensions, and nested structures
 - 📦 **Import resolution** - Automatically resolve imports including Google Well-Known Types
 - 🛡️ **Type-safe** - Full TypeScript support with comprehensive type definitions
+- 📚 **ProtoSet collections** - Manage and query multiple proto files as a unified set
 - ⚡ **Only 2 dependencies** - Built on `protobufjs` and `@grpc/proto-loader`
 
 ### Supported Features
@@ -81,6 +83,37 @@ import { parseProtoSync } from '@pseudomutojs/proto-parser';
 const proto = parseProtoSync('./path/to/your/file.proto');
 ```
 
+### Parse Directory
+
+```typescript
+import { parseProtoDirectory } from '@pseudomutojs/proto-parser';
+
+// Parse all .proto files in a directory
+const protoSet = await parseProtoDirectory('./protos');
+
+console.log(`Parsed ${protoSet.size()} files`);
+console.log('All messages:', protoSet.getAllMessages());
+console.log('All services:', protoSet.getAllServices());
+```
+
+### Create ProtoSet from Multiple Sources
+
+```typescript
+import { ProtoSet } from '@pseudomutojs/proto-parser';
+
+// Mix file paths and literal content
+const protoSet = await ProtoSet.from(
+  './user.proto',
+  './service.proto',
+  `syntax = "proto3";
+   message Test { string id = 1; }`
+);
+
+// Access all definitions
+const messages = protoSet.getAllMessages();
+const services = protoSet.getAllServices();
+```
+
 ## API Reference
 
 ### Main Functions
@@ -107,6 +140,62 @@ Synchronously parses a Protocol Buffer file or content string.
 
 **Returns:** `Proto` - A Proto object containing all parsed definitions
 
+#### `parseProtoDirectory(dirPath, options?)`
+
+Asynchronously parses all Protocol Buffer files in a directory.
+
+**Parameters:**
+
+- `dirPath` (string) - Path to the directory containing .proto files
+- `options` (DirectoryParseOptions, optional) - Directory parsing configuration options
+
+**Returns:** `Promise<ProtoSet>` - A promise that resolves to a ProtoSet containing all parsed proto files
+
+#### `parseProtoDirectorySync(dirPath, options?)`
+
+Synchronously parses all Protocol Buffer files in a directory.
+
+**Parameters:**
+
+- `dirPath` (string) - Path to the directory containing .proto files
+- `options` (DirectoryParseOptions, optional) - Directory parsing configuration options
+
+**Returns:** `ProtoSet` - A ProtoSet containing all parsed proto files
+
+### ProtoSet Class
+
+A collection of parsed Protocol Buffer files with methods to query and aggregate definitions.
+
+#### Static Methods
+
+##### `ProtoSet.from(...inputs)`
+
+Creates a ProtoSet from multiple file paths and/or proto content strings.
+
+```typescript
+// Async version
+const protoSet = await ProtoSet.from(
+  './user.proto',
+  'syntax = "proto3"; message Test { string id = 1; }',
+  { keepCase: false } // optional ParseOptions
+);
+
+// Sync version
+const protoSet = ProtoSet.fromSync('./user.proto', './service.proto');
+```
+
+#### Instance Methods
+
+- `getProtos()` - Returns all Proto objects in the set
+- `getProtoByFile(filename)` - Find a proto by its filename
+- `getAllMessages()` - Get all messages from all protos (including nested)
+- `getAllServices()` - Get all services from all protos
+- `getAllEnums()` - Get all enums from all protos (including nested)
+- `getAllImports()` - Get unique imports across all protos
+- `size()` - Returns the number of proto files in the set
+- `isEmpty()` - Check if the set is empty
+- `getStats()` - Get statistics about the proto set
+
 ### Configuration Options
 
 ```typescript
@@ -119,6 +208,11 @@ interface ParseOptions {
   defaults?: boolean;
   /** Whether to include oneof definitions (default: true) */
   oneofs?: boolean;
+}
+
+interface DirectoryParseOptions extends ParseOptions {
+  /** Whether to recursively search subdirectories for .proto files (default: true) */
+  recursive?: boolean;
 }
 ```
 
@@ -190,6 +284,48 @@ type Message = {
 For complete type definitions, see the [TypeScript definitions](./src/types.ts).
 
 ## Advanced Usage
+
+### Working with ProtoSet
+
+```typescript
+import { parseProtoDirectory, ProtoSet } from '@pseudomutojs/proto-parser';
+
+// Parse an entire directory
+const protoSet = await parseProtoDirectory('./api/protos', {
+  recursive: true,  // Search subdirectories
+  includePaths: ['./third_party/googleapis']
+});
+
+// Get statistics
+const stats = protoSet.getStats();
+console.log(`Loaded ${stats.files} proto files containing:`);
+console.log(`  - ${stats.messages} messages`);
+console.log(`  - ${stats.services} services`);
+console.log(`  - ${stats.enums} enums`);
+
+// Find specific proto file
+const userProto = protoSet.getProtoByFile('user.proto');
+
+// Get all service methods across all files
+const services = protoSet.getAllServices();
+services.forEach(service => {
+  service.methods?.forEach(method => {
+    console.log(`${service.name}.${method.name}`);
+  });
+});
+
+// Create ProtoSet from mixed sources
+const customSet = await ProtoSet.from(
+  './common/base.proto',
+  './services/api.proto',
+  `syntax = "proto3";
+   package custom;
+   message Config { 
+     string key = 1;
+     string value = 2;
+   }`
+);
+```
 
 ### Custom Include Paths
 

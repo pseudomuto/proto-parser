@@ -182,3 +182,31 @@ export type Extension = {
   /** The unique field number for this extension */
   number: number;
 };
+
+/**
+ * Configuration options for parsing Protocol Buffer files.
+ *
+ * @public
+ * @since 0.1.0
+ */
+export interface ParseOptions {
+  /** Additional directories to search for imported proto files */
+  includePaths?: string[];
+  /** Whether to preserve field name casing (default: true) */
+  keepCase?: boolean;
+  /** Whether to include default values (default: true) */
+  defaults?: boolean;
+  /** Whether to include oneof definitions (default: true) */
+  oneofs?: boolean;
+}
+
+/**
+ * Configuration options for parsing Protocol Buffer directories.
+ *
+ * @public
+ * @since 0.1.0
+ */
+export interface DirectoryParseOptions extends ParseOptions {
+  /** Whether to recursively search subdirectories for .proto files (default: true) */
+  recursive?: boolean;
+}
