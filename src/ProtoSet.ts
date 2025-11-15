@@ -1,4 +1,4 @@
-import { parseProto, parseProtoSync } from './parser';
+import { parseProto } from './parser';
 import { Enum, Message, ParseOptions, Proto, Service } from './types';
 
 /**
@@ -91,68 +91,6 @@ export class ProtoSet {
 
     const results = await Promise.all(parsePromises);
     const protos = results.filter((proto): proto is Proto => proto !== null);
-
-    if (protos.length === 0 && inputs.length > 0) {
-      throw new Error('Failed to parse any of the provided inputs');
-    }
-
-    return new ProtoSet(protos);
-  }
-
-  /**
-   * Synchronously creates a ProtoSet from multiple file paths and/or proto content strings.
-   *
-   * This is the synchronous version of {@link from}. It provides the same
-   * functionality but uses blocking operations.
-   *
-   * @param inputs - Variable number of file paths or proto content strings
-   * @returns A ProtoSet containing all parsed protos
-   * @throws {Error} If all inputs fail to parse
-   *
-   * @example
-   * ```typescript
-   * // Mix of file paths and literal content
-   * const protoSet = ProtoSet.fromSync(
-   *   './user.proto',
-   *   'syntax = "proto3"; message Test { string id = 1; }'
-   * );
-   * ```
-   *
-   * @since 0.1.0
-   */
-  static fromSync(...inputs: string[]): ProtoSet;
-  static fromSync(...args: [...string[], ParseOptions]): ProtoSet;
-  static fromSync(...args: (string | ParseOptions)[]): ProtoSet {
-    // Determine if the last argument is options
-    let options: ParseOptions = {};
-    let inputs: string[] = args as string[];
-
-    if (args.length > 0) {
-      const lastArg = args[args.length - 1];
-      if (typeof lastArg === 'object' && lastArg !== null) {
-        options = lastArg as ParseOptions;
-        inputs = args.slice(0, -1) as string[];
-      }
-    }
-
-    if (inputs.length === 0) {
-      return new ProtoSet([]);
-    }
-
-    // Parse all inputs synchronously
-    const protos: Proto[] = [];
-    const errors: string[] = [];
-
-    for (const input of inputs) {
-      try {
-        const proto = parseProtoSync(input, options);
-        protos.push(proto);
-      } catch (error) {
-        const errorMsg = `Failed to parse input: ${error instanceof Error ? error.message : String(error)}`;
-        errors.push(errorMsg);
-        console.warn(errorMsg);
-      }
-    }
 
     if (protos.length === 0 && inputs.length > 0) {
       throw new Error('Failed to parse any of the provided inputs');

@@ -1,6 +1,6 @@
 import * as path from 'path';
 
-import { parseProto, parseProtoSync } from './parser';
+import { parseProto } from './parser';
 import { readFile } from './utils';
 
 describe('parseProto', () => {
@@ -154,43 +154,6 @@ describe('parseProto', () => {
       const innerEnum = middleMessage!.nestedEnums!.find(e => e.name === 'InnerEnum');
       expect(innerEnum).toBeDefined();
       expect(innerEnum!.namespace).toBe('examples.nested.OuterMessage.MiddleMessage');
-    });
-  });
-
-  describe('sync parsing', () => {
-    test('should parse proto synchronously', () => {
-      const result = parseProtoSync(userServicePath, { includePaths });
-
-      expect(result.file).toBe('user_service.proto');
-      expect(result.path).toBe(userServicePath);
-      expect(result.services).toBeDefined();
-      expect(result.messages).toBeDefined();
-      expect(result.enums).toBeDefined();
-    });
-
-    test('should handle errors gracefully', () => {
-      const invalidProto = 'invalid proto content';
-
-      expect(() => {
-        parseProtoSync(invalidProto);
-      }).toThrow('Failed to parse proto');
-    });
-
-    test('should fail consistently for missing imports in sync mode', () => {
-      const contentWithMissingImport = `
-        syntax = "proto3";
-        package test;
-        import "nonexistent/import.proto";
-
-        message TestMessage {
-          string field = 1;
-        }
-      `;
-
-      // Sync content string parsing should also consistently fail when imports can't be resolved
-      expect(() => {
-        parseProtoSync(contentWithMissingImport);
-      }).toThrow('Cannot resolve import: nonexistent/import.proto');
     });
   });
 

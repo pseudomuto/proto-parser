@@ -16,16 +16,7 @@ import {
   Service,
   ServiceMethod,
 } from './types';
-import {
-  getProtoDirectory,
-  getProtoPath,
-  getProtoPathSync,
-  joinNamespace,
-  loadProtoContent,
-  loadProtoContentSync,
-  resolveImport,
-  resolveImportSync,
-} from './utils';
+import { getProtoDirectory, getProtoPath, joinNamespace, loadProtoContent, resolveImport } from './utils';
 
 const parseFieldRule = (field: protobuf.Field): FieldRule | undefined => {
   if (field.repeated) return 'repeated';
@@ -191,6 +182,42 @@ const collectAllServices = (root: protobuf.Namespace, services: Service[] = [], 
 };
 
 /**
+ * Synchronously resolves an import path to its full file system path
+ */
+const resolveImportPathSync = (importPath: string, baseDir: string, includePaths: string[] = []): string | null => {
+  const searchPaths = [
+    baseDir,
+    ...includePaths,
+    path.join(baseDir, 'proto'),
+    path.join(baseDir, 'protos'),
+    process.cwd(),
+  ];
+
+  for (const searchPath of searchPaths) {
+    const fullPath = path.join(searchPath, importPath);
+    if (fs.existsSync(fullPath)) {
+      return fullPath;
+    }
+  }
+
+  const wellKnownPath = path.join(
+    __dirname,
+    '..',
+    'node_modules',
+    'protobufjs',
+    'google',
+    'protobuf',
+    path.basename(importPath),
+  );
+
+  if (fs.existsSync(wellKnownPath)) {
+    return wellKnownPath;
+  }
+
+  return null;
+};
+
+/**
  * Creates a resolvePath function for protobuf root with import resolution logic
  */
 const createResolvePath = (isFilePath: boolean, protoDir: string, options: ParseOptions) => {
@@ -205,7 +232,7 @@ const createResolvePath = (isFilePath: boolean, protoDir: string, options: Parse
     // For file paths, resolve relative to the proto directory and include paths
     // For content strings, resolve relative to current working directory
     const baseDir = isFilePath ? protoDir : process.cwd();
-    const resolved = resolveImportSync(target, baseDir, options.includePaths);
+    const resolved = resolveImportPathSync(target, baseDir, options.includePaths);
     if (resolved) {
       return resolved;
     }
@@ -244,7 +271,8 @@ const validateImports = (imports: string[], protoDir: string, options: ParseOpti
     if (importPath.startsWith('google/protobuf/')) {
       continue;
     }
-    const resolved = resolveImportSync(importPath, protoDir, options.includePaths);
+
+    const resolved = resolveImportPathSync(importPath, protoDir, options.includePaths);
     if (!resolved) {
       throw new Error(`Cannot resolve import: ${importPath}`);
     }
@@ -411,103 +439,6 @@ const parseProtoCore = async (
 };
 
 /**
- * Synchronous core parsing logic
- */
-const parseProtoCoreSync = (
-  input: string,
-  options: ParseOptions,
-  loadContentFn: (input: string) => string,
-  getPathFn: (input: string) => string,
-  loadRootFn: (root: protobuf.Root, path: string) => void,
-  resolveImportFn: (importPath: string, baseDir: string, includePaths?: string[]) => string | null,
-): Proto => {
-  try {
-    const content = loadContentFn(input);
-    const protoPath = getPathFn(input);
-    const protoDir = getProtoDirectory(protoPath);
-    const isFilePath = protoPath !== '';
-
-    let result: { root: protobuf.Root; parsed: protobuf.IParserResult };
-
-    if (isFilePath) {
-      // Sync version of parseFileContent
-      const tempParsed = protobuf.parse(content, new protobuf.Root(), {
-        keepCase: options.keepCase !== false,
-      });
-
-      if (tempParsed.imports) {
-        validateImports(tempParsed.imports, protoDir, options);
-      }
-
-      // For file paths, we need to use protobuf.parse() instead of root.loadSync()
-      // to ensure keepCase option is respected. Load imports first, then parse main content.
-      const root = new protobuf.Root();
-      root.resolvePath = createResolvePath(true, protoDir, options);
-
-      // Load all imports first
-      if (tempParsed.imports) {
-        for (const importPath of tempParsed.imports) {
-          try {
-            const resolvedPath = root.resolvePath('', importPath);
-            if (resolvedPath) {
-              loadRootFn(root, resolvedPath);
-            }
-          } catch (err) {
-            console.warn(`Failed to load import: ${importPath}`, err);
-          }
-        }
-      }
-
-      // Now parse the main content into the root that has all imports loaded
-      const parsed = protobuf.parse(content, root, {
-        keepCase: options.keepCase !== false,
-      });
-
-      result = { root, parsed };
-    } else {
-      // Sync version of parseContentString
-      const tempRoot = new protobuf.Root();
-      const parsed = protobuf.parse(content, tempRoot, {
-        keepCase: options.keepCase !== false,
-      });
-
-      // Pre-validate all imports can be resolved (consistent with file path behavior)
-      if (parsed.imports) {
-        validateImports(parsed.imports, process.cwd(), options);
-      }
-
-      const root = new protobuf.Root();
-      root.resolvePath = createResolvePath(false, '', options);
-
-      if (parsed.imports) {
-        for (const importPath of parsed.imports) {
-          try {
-            const resolvedPath =
-              resolveImportFn(importPath, process.cwd(), options.includePaths) || root.resolvePath('', importPath);
-            if (resolvedPath) {
-              loadRootFn(root, resolvedPath);
-            }
-          } catch (err) {
-            // Import resolution was already validated above, so this should be rare
-            console.warn(`Failed to load import: ${importPath}`, err);
-          }
-        }
-      }
-
-      protobuf.parse(content, root, {
-        keepCase: options.keepCase !== false,
-      });
-
-      result = { root, parsed };
-    }
-
-    return buildProtoResult(result.root, protoPath, content, result.parsed);
-  } catch (error) {
-    throw new Error(`Failed to parse proto: ${error instanceof Error ? error.message : String(error)}`);
-  }
-};
-
-/**
  * Asynchronously parses a Protocol Buffer file or content string.
  *
  * This function can accept either a file path to a .proto file or the actual
@@ -551,39 +482,6 @@ export const parseProto = async (input: string, options: ParseOptions = {}): Pro
 };
 
 /**
- * Synchronously parses a Protocol Buffer file or content string.
- *
- * This is the synchronous version of {@link parseProto}. It provides the same
- * functionality but uses blocking file system operations.
- *
- * @param input - Either a file path to a .proto file or proto content string
- * @param options - Parsing options to customize behavior
- * @returns A Proto object containing all parsed definitions
- * @throws {Error} When the proto file cannot be parsed, read, or imports cannot be resolved
- *
- * @example
- * ```typescript
- * // Parse from file path synchronously
- * const proto = parseProtoSync('./path/to/file.proto');
- * ```
- *
- * @public
- * @since 0.1.0
- */
-export const parseProtoSync = (input: string, options: ParseOptions = {}): Proto => {
-  return parseProtoCoreSync(
-    input,
-    options,
-    loadProtoContentSync,
-    getProtoPathSync,
-    (root, path) => {
-      root.loadSync(path, { keepCase: options.keepCase !== false });
-    },
-    resolveImportSync,
-  );
-};
-
-/**
  * Asynchronously finds all .proto files in a directory and returns their paths.
  */
 const findProtoFiles = async (dirPath: string, recursive: boolean = true): Promise<string[]> => {
@@ -610,36 +508,6 @@ const findProtoFiles = async (dirPath: string, recursive: boolean = true): Promi
   };
 
   await scanDirectory(dirPath);
-  return protoFiles.sort();
-};
-
-/**
- * Synchronously finds all .proto files in a directory and returns their paths.
- */
-const findProtoFilesSync = (dirPath: string, recursive: boolean = true): string[] => {
-  const protoFiles: string[] = [];
-
-  const scanDirectory = (currentDir: string): void => {
-    try {
-      const entries = fs.readdirSync(currentDir, { withFileTypes: true });
-
-      for (const entry of entries) {
-        const fullPath = path.join(currentDir, entry.name);
-
-        if (entry.isFile() && entry.name.endsWith('.proto')) {
-          protoFiles.push(fullPath);
-        } else if (entry.isDirectory() && recursive) {
-          scanDirectory(fullPath);
-        }
-      }
-    } catch (error) {
-      throw new Error(
-        `Failed to read directory ${currentDir}: ${error instanceof Error ? error.message : String(error)}`,
-      );
-    }
-  };
-
-  scanDirectory(dirPath);
   return protoFiles.sort();
 };
 
@@ -719,90 +587,6 @@ export const parseProtoDirectory = async (dirPath: string, options: DirectoryPar
   for (const filePath of protoFilePaths) {
     try {
       const proto = await parseProto(filePath, enhancedOptions);
-      protos.push(proto);
-    } catch (error) {
-      errors.push(`Failed to parse ${filePath}: ${error instanceof Error ? error.message : String(error)}`);
-    }
-  }
-
-  if (errors.length > 0 && protos.length === 0) {
-    throw new Error(`Failed to parse any proto files:\n${errors.join('\n')}`);
-  } else if (errors.length > 0) {
-    console.warn(`Some proto files failed to parse:\n${errors.join('\n')}`);
-  }
-
-  return new ProtoSet(protos);
-};
-
-/**
- * Synchronously parses all Protocol Buffer files in a directory.
- *
- * This is the synchronous version of {@link parseProtoDirectory}. It provides
- * the same functionality but uses blocking file system operations.
- *
- * @param dirPath - Path to the directory containing .proto files
- * @param options - Parsing options to customize behavior
- * @returns A ProtoSet containing all parsed proto files
- * @throws {Error} When the directory cannot be read or proto files cannot be parsed
- *
- * @example
- * ```typescript
- * // Parse all protos in a directory synchronously
- * const protoSet = parseProtoDirectorySync('./protos');
- * ```
- *
- * @public
- * @since 0.1.0
- */
-export const parseProtoDirectorySync = (dirPath: string, options: DirectoryParseOptions = {}): ProtoSet => {
-  const { recursive = true, ...parseOptions } = options;
-
-  // Validate directory exists
-  const resolvedDirPath = path.resolve(dirPath);
-  try {
-    const stats = fs.statSync(resolvedDirPath);
-    if (!stats.isDirectory()) {
-      throw new Error(`Path is not a directory: ${dirPath}`);
-    }
-  } catch (error) {
-    const nodeError = error as NodeJS.ErrnoException;
-    if (nodeError.code === 'ENOENT') {
-      throw new Error(`Directory not found: ${dirPath}`);
-    } else if (nodeError.code === 'EACCES') {
-      throw new Error(`Permission denied accessing directory: ${dirPath}`);
-    } else {
-      throw new Error(`Cannot access directory: ${dirPath} (${nodeError.message || String(error)})`);
-    }
-  }
-
-  // Find all proto files
-  const protoFilePaths = findProtoFilesSync(resolvedDirPath, recursive);
-
-  if (protoFilePaths.length === 0) {
-    return new ProtoSet([]);
-  }
-
-  // Add the directory and its parent directories to include paths to resolve imports between files
-  // This helps resolve imports that use relative paths from the project root
-  const parentDirs = [];
-  let currentDir = resolvedDirPath;
-  while (currentDir !== path.dirname(currentDir)) {
-    parentDirs.push(currentDir);
-    currentDir = path.dirname(currentDir);
-  }
-
-  const enhancedOptions: ParseOptions = {
-    ...parseOptions,
-    includePaths: [...parentDirs, ...(parseOptions.includePaths || [])],
-  };
-
-  // Parse all proto files
-  const protos: Proto[] = [];
-  const errors: string[] = [];
-
-  for (const filePath of protoFilePaths) {
-    try {
-      const proto = parseProtoSync(filePath, enhancedOptions);
       protos.push(proto);
     } catch (error) {
       errors.push(`Failed to parse ${filePath}: ${error instanceof Error ? error.message : String(error)}`);

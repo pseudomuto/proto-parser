@@ -19,23 +19,6 @@ export const isFilePath = async (input: string): Promise<boolean> => {
 };
 
 /**
- * Synchronously determines if the input string is a file path rather than proto content.
- *
- * @param input - String to check (either file path or proto content)
- * @returns True if input appears to be a file path
- *
- * @public
- * @since 0.1.0
- */
-export const isFilePathSync = (input: string): boolean => {
-  if (input.includes('\n') || input.includes('syntax =')) {
-    return false;
-  }
-
-  return input.endsWith('.proto') || fs.existsSync(input) || fs.existsSync(path.resolve(input));
-};
-
-/**
  * Asynchronously loads proto content from a file path or returns the input if it's already content.
  *
  * @param input - Either a file path to a .proto file or proto content string
@@ -55,25 +38,6 @@ export const loadProtoContent = async (input: string): Promise<string> => {
 };
 
 /**
- * Synchronously loads proto content from a file path or returns the input if it's already content.
- *
- * @param input - Either a file path to a .proto file or proto content string
- * @returns The proto file content
- * @throws {Error} When the file cannot be read
- *
- * @public
- * @since 0.1.0
- */
-export const loadProtoContentSync = (input: string): string => {
-  if (isFilePathSync(input)) {
-    const filePath = fs.existsSync(input) ? input : path.resolve(input);
-    return fs.readFileSync(filePath, 'utf-8');
-  }
-
-  return input;
-};
-
-/**
  * Asynchronously resolves the full file path for a proto input.
  *
  * @param input - Either a file path to a .proto file or proto content string
@@ -84,23 +48,6 @@ export const loadProtoContentSync = (input: string): string => {
  */
 export const getProtoPath = async (input: string): Promise<string> => {
   if (await isFilePath(input)) {
-    return path.resolve(input);
-  }
-
-  return '';
-};
-
-/**
- * Synchronously resolves the full file path for a proto input.
- *
- * @param input - Either a file path to a .proto file or proto content string
- * @returns The full file path, or empty string if input is content
- *
- * @public
- * @since 0.1.0
- */
-export const getProtoPathSync = (input: string): string => {
-  if (isFilePathSync(input)) {
     return path.resolve(input);
   }
 
@@ -165,49 +112,6 @@ export const resolveImport = async (
   );
 
   return (await fileExists(wellKnownPath)) ? wellKnownPath : null;
-};
-
-/**
- * Synchronously resolves the full path of an imported proto file.
- *
- * Searches through multiple directories including the base directory,
- * include paths, and well-known Google proto types.
- *
- * @param importPath - The import path from the proto file
- * @param baseDir - The directory containing the importing proto file
- * @param includePaths - Additional directories to search for imports
- * @returns The full path of the import, or null if not found
- *
- * @public
- * @since 0.1.0
- */
-export const resolveImportSync = (importPath: string, baseDir: string, includePaths: string[] = []): string | null => {
-  const searchPaths = [
-    baseDir,
-    ...includePaths,
-    path.join(baseDir, 'proto'),
-    path.join(baseDir, 'protos'),
-    process.cwd(),
-  ];
-
-  for (const searchPath of searchPaths) {
-    const fullPath = path.join(searchPath, importPath);
-    if (fs.existsSync(fullPath)) {
-      return fullPath;
-    }
-  }
-
-  const wellKnownPath = path.join(
-    __dirname,
-    '..',
-    'node_modules',
-    'protobufjs',
-    'google',
-    'protobuf',
-    path.basename(importPath),
-  );
-
-  return fs.existsSync(wellKnownPath) ? wellKnownPath : null;
 };
 
 /**

@@ -8,7 +8,7 @@
  * @since 0.1.0
  */
 
-export { parseProto, parseProtoSync, parseProtoDirectory, parseProtoDirectorySync } from './parser';
+export { parseProto, parseProtoDirectory } from './parser';
 export { ProtoSet } from './ProtoSet';
 export * from './types';
 export * from './utils';
