@@ -2,7 +2,20 @@ import * as fs from 'fs';
 import * as path from 'path';
 import * as protobuf from 'protobufjs';
 
-import { Enum, EnumValue, Field, FieldRule, Message, OneOf, Proto, Service, ServiceMethod } from './types';
+import { ProtoSet } from './ProtoSet';
+import {
+  DirectoryParseOptions,
+  Enum,
+  EnumValue,
+  Field,
+  FieldRule,
+  Message,
+  OneOf,
+  ParseOptions,
+  Proto,
+  Service,
+  ServiceMethod,
+} from './types';
 import {
   getProtoDirectory,
   getProtoPath,
@@ -13,23 +26,6 @@ import {
   resolveImport,
   resolveImportSync,
 } from './utils';
-
-/**
- * Configuration options for parsing Protocol Buffer files.
- *
- * @public
- * @since 0.1.0
- */
-export interface ParseOptions {
-  /** Additional directories to search for imported proto files */
-  includePaths?: string[];
-  /** Whether to preserve field name casing (default: true) */
-  keepCase?: boolean;
-  /** Whether to include default values (default: true) */
-  defaults?: boolean;
-  /** Whether to include oneof definitions (default: true) */
-  oneofs?: boolean;
-}
 
 const parseFieldRule = (field: protobuf.Field): FieldRule | undefined => {
   if (field.repeated) return 'repeated';
@@ -585,4 +581,239 @@ export const parseProtoSync = (input: string, options: ParseOptions = {}): Proto
     },
     resolveImportSync,
   );
+};
+
+/**
+ * Asynchronously finds all .proto files in a directory and returns their paths.
+ */
+const findProtoFiles = async (dirPath: string, recursive: boolean = true): Promise<string[]> => {
+  const protoFiles: string[] = [];
+
+  const scanDirectory = async (currentDir: string): Promise<void> => {
+    try {
+      const entries = await fs.promises.readdir(currentDir, { withFileTypes: true });
+
+      for (const entry of entries) {
+        const fullPath = path.join(currentDir, entry.name);
+
+        if (entry.isFile() && entry.name.endsWith('.proto')) {
+          protoFiles.push(fullPath);
+        } else if (entry.isDirectory() && recursive) {
+          await scanDirectory(fullPath);
+        }
+      }
+    } catch (error) {
+      throw new Error(
+        `Failed to read directory ${currentDir}: ${error instanceof Error ? error.message : String(error)}`,
+      );
+    }
+  };
+
+  await scanDirectory(dirPath);
+  return protoFiles.sort();
+};
+
+/**
+ * Synchronously finds all .proto files in a directory and returns their paths.
+ */
+const findProtoFilesSync = (dirPath: string, recursive: boolean = true): string[] => {
+  const protoFiles: string[] = [];
+
+  const scanDirectory = (currentDir: string): void => {
+    try {
+      const entries = fs.readdirSync(currentDir, { withFileTypes: true });
+
+      for (const entry of entries) {
+        const fullPath = path.join(currentDir, entry.name);
+
+        if (entry.isFile() && entry.name.endsWith('.proto')) {
+          protoFiles.push(fullPath);
+        } else if (entry.isDirectory() && recursive) {
+          scanDirectory(fullPath);
+        }
+      }
+    } catch (error) {
+      throw new Error(
+        `Failed to read directory ${currentDir}: ${error instanceof Error ? error.message : String(error)}`,
+      );
+    }
+  };
+
+  scanDirectory(dirPath);
+  return protoFiles.sort();
+};
+
+/**
+ * Asynchronously parses all Protocol Buffer files in a directory.
+ *
+ * This function recursively searches a directory for .proto files and parses
+ * each one, returning a ProtoSet containing all parsed definitions. It handles
+ * imports between files within the same directory structure.
+ *
+ * @param dirPath - Path to the directory containing .proto files
+ * @param options - Parsing options to customize behavior
+ * @returns A Promise that resolves to a ProtoSet containing all parsed proto files
+ * @throws {Error} When the directory cannot be read or proto files cannot be parsed
+ *
+ * @example
+ * ```typescript
+ * // Parse all protos in a directory recursively
+ * const protoSet = await parseProtoDirectory('./protos');
+ *
+ * // Parse with custom options
+ * const protoSet = await parseProtoDirectory('./protos', {
+ *   recursive: false,
+ *   includePaths: ['./imports']
+ * });
+ * ```
+ *
+ * @public
+ * @since 0.1.0
+ */
+export const parseProtoDirectory = async (dirPath: string, options: DirectoryParseOptions = {}): Promise<ProtoSet> => {
+  const { recursive = true, ...parseOptions } = options;
+
+  // Validate directory exists
+  const resolvedDirPath = path.resolve(dirPath);
+  try {
+    const stats = await fs.promises.stat(resolvedDirPath);
+    if (!stats.isDirectory()) {
+      throw new Error(`Path is not a directory: ${dirPath}`);
+    }
+  } catch (error) {
+    const nodeError = error as NodeJS.ErrnoException;
+    if (nodeError.code === 'ENOENT') {
+      throw new Error(`Directory not found: ${dirPath}`);
+    } else if (nodeError.code === 'EACCES') {
+      throw new Error(`Permission denied accessing directory: ${dirPath}`);
+    } else {
+      throw new Error(`Cannot access directory: ${dirPath} (${nodeError.message || String(error)})`);
+    }
+  }
+
+  // Find all proto files
+  const protoFilePaths = await findProtoFiles(resolvedDirPath, recursive);
+
+  if (protoFilePaths.length === 0) {
+    return new ProtoSet([]);
+  }
+
+  // Add the directory and its parent directories to include paths to resolve imports between files
+  // This helps resolve imports that use relative paths from the project root
+  const parentDirs = [];
+  let currentDir = resolvedDirPath;
+  while (currentDir !== path.dirname(currentDir)) {
+    parentDirs.push(currentDir);
+    currentDir = path.dirname(currentDir);
+  }
+
+  const enhancedOptions: ParseOptions = {
+    ...parseOptions,
+    includePaths: [...parentDirs, ...(parseOptions.includePaths || [])],
+  };
+
+  // Parse all proto files
+  const protos: Proto[] = [];
+  const errors: string[] = [];
+
+  for (const filePath of protoFilePaths) {
+    try {
+      const proto = await parseProto(filePath, enhancedOptions);
+      protos.push(proto);
+    } catch (error) {
+      errors.push(`Failed to parse ${filePath}: ${error instanceof Error ? error.message : String(error)}`);
+    }
+  }
+
+  if (errors.length > 0 && protos.length === 0) {
+    throw new Error(`Failed to parse any proto files:\n${errors.join('\n')}`);
+  } else if (errors.length > 0) {
+    console.warn(`Some proto files failed to parse:\n${errors.join('\n')}`);
+  }
+
+  return new ProtoSet(protos);
+};
+
+/**
+ * Synchronously parses all Protocol Buffer files in a directory.
+ *
+ * This is the synchronous version of {@link parseProtoDirectory}. It provides
+ * the same functionality but uses blocking file system operations.
+ *
+ * @param dirPath - Path to the directory containing .proto files
+ * @param options - Parsing options to customize behavior
+ * @returns A ProtoSet containing all parsed proto files
+ * @throws {Error} When the directory cannot be read or proto files cannot be parsed
+ *
+ * @example
+ * ```typescript
+ * // Parse all protos in a directory synchronously
+ * const protoSet = parseProtoDirectorySync('./protos');
+ * ```
+ *
+ * @public
+ * @since 0.1.0
+ */
+export const parseProtoDirectorySync = (dirPath: string, options: DirectoryParseOptions = {}): ProtoSet => {
+  const { recursive = true, ...parseOptions } = options;
+
+  // Validate directory exists
+  const resolvedDirPath = path.resolve(dirPath);
+  try {
+    const stats = fs.statSync(resolvedDirPath);
+    if (!stats.isDirectory()) {
+      throw new Error(`Path is not a directory: ${dirPath}`);
+    }
+  } catch (error) {
+    const nodeError = error as NodeJS.ErrnoException;
+    if (nodeError.code === 'ENOENT') {
+      throw new Error(`Directory not found: ${dirPath}`);
+    } else if (nodeError.code === 'EACCES') {
+      throw new Error(`Permission denied accessing directory: ${dirPath}`);
+    } else {
+      throw new Error(`Cannot access directory: ${dirPath} (${nodeError.message || String(error)})`);
+    }
+  }
+
+  // Find all proto files
+  const protoFilePaths = findProtoFilesSync(resolvedDirPath, recursive);
+
+  if (protoFilePaths.length === 0) {
+    return new ProtoSet([]);
+  }
+
+  // Add the directory and its parent directories to include paths to resolve imports between files
+  // This helps resolve imports that use relative paths from the project root
+  const parentDirs = [];
+  let currentDir = resolvedDirPath;
+  while (currentDir !== path.dirname(currentDir)) {
+    parentDirs.push(currentDir);
+    currentDir = path.dirname(currentDir);
+  }
+
+  const enhancedOptions: ParseOptions = {
+    ...parseOptions,
+    includePaths: [...parentDirs, ...(parseOptions.includePaths || [])],
+  };
+
+  // Parse all proto files
+  const protos: Proto[] = [];
+  const errors: string[] = [];
+
+  for (const filePath of protoFilePaths) {
+    try {
+      const proto = parseProtoSync(filePath, enhancedOptions);
+      protos.push(proto);
+    } catch (error) {
+      errors.push(`Failed to parse ${filePath}: ${error instanceof Error ? error.message : String(error)}`);
+    }
+  }
+
+  if (errors.length > 0 && protos.length === 0) {
+    throw new Error(`Failed to parse any proto files:\n${errors.join('\n')}`);
+  } else if (errors.length > 0) {
+    console.warn(`Some proto files failed to parse:\n${errors.join('\n')}`);
+  }
+
+  return new ProtoSet(protos);
 };
