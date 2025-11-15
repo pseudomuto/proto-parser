@@ -7,15 +7,11 @@ import {
   fileExists,
   getProtoDirectory,
   getProtoPath,
-  getProtoPathSync,
   isFilePath,
-  isFilePathSync,
   joinNamespace,
   loadProtoContent,
-  loadProtoContentSync,
   readFile,
   resolveImport,
-  resolveImportSync,
 } from './utils';
 
 describe('utils', () => {
@@ -59,33 +55,6 @@ message Test {
         expect(await isFilePath('/non/existent/file.txt')).toBe(false);
       });
     });
-
-    describe('sync version', () => {
-      test('should return true for .proto file extensions', () => {
-        expect(isFilePathSync('test.proto')).toBe(true);
-        expect(isFilePathSync('/path/to/file.proto')).toBe(true);
-      });
-
-      test('should return true for existing files', () => {
-        expect(isFilePathSync(userServicePath)).toBe(true);
-        expect(isFilePathSync(nestedPath)).toBe(true);
-      });
-
-      test('should return false for proto content with newlines', () => {
-        expect(isFilePathSync(sampleProtoContent)).toBe(false);
-        expect(isFilePathSync('syntax = "proto3";\nmessage Test {}')).toBe(false);
-      });
-
-      test('should return false for proto content with syntax declaration', () => {
-        expect(isFilePathSync('syntax = "proto3"')).toBe(false);
-        expect(isFilePathSync('message Test { syntax = "test" }')).toBe(false);
-      });
-
-      test('should return false for non-existent non-proto files', () => {
-        expect(isFilePathSync('test.txt')).toBe(false);
-        expect(isFilePathSync('/non/existent/file.txt')).toBe(false);
-      });
-    });
   });
 
   describe('loadProtoContent', () => {
@@ -112,30 +81,6 @@ message Test {
         await expect(loadProtoContent(nonExistentPath)).rejects.toThrow();
       });
     });
-
-    describe('sync version', () => {
-      test('should load content from file path', () => {
-        const content = loadProtoContentSync(userServicePath);
-        expect(content).toContain('syntax = "proto3"');
-        expect(content).toContain('package api.user.v1');
-        expect(content).toContain('service UserService');
-      });
-
-      test('should return content string unchanged', () => {
-        const content = loadProtoContentSync(sampleProtoContent);
-        expect(content).toBe(sampleProtoContent);
-      });
-
-      test('should handle relative paths', () => {
-        const relativePath = path.relative(process.cwd(), userServicePath);
-        const content = loadProtoContentSync(relativePath);
-        expect(content).toContain('syntax = "proto3"');
-      });
-
-      test('should throw error for non-existent file', () => {
-        expect(() => loadProtoContentSync(nonExistentPath)).toThrow();
-      });
-    });
   });
 
   describe('getProtoPath', () => {
@@ -158,29 +103,6 @@ message Test {
 
       test('should return empty string for syntax declarations', async () => {
         const result = await getProtoPath('syntax = "proto3"');
-        expect(result).toBe('');
-      });
-    });
-
-    describe('sync version', () => {
-      test('should return resolved path for file paths', () => {
-        const result = getProtoPathSync(userServicePath);
-        expect(result).toBe(path.resolve(userServicePath));
-      });
-
-      test('should return resolved path for relative paths', () => {
-        const relativePath = 'fixtures/api/user/v1/user_service.proto';
-        const result = getProtoPathSync(relativePath);
-        expect(result).toBe(path.resolve(relativePath));
-      });
-
-      test('should return empty string for proto content', () => {
-        const result = getProtoPathSync(sampleProtoContent);
-        expect(result).toBe('');
-      });
-
-      test('should return empty string for syntax declarations', () => {
-        const result = getProtoPathSync('syntax = "proto3"');
         expect(result).toBe('');
       });
     });
@@ -249,33 +171,6 @@ message Test {
           fs.rmdirSync(protoSubDir);
           fs.rmdirSync(tempDir);
         }
-      });
-    });
-
-    describe('sync version', () => {
-      test('should resolve existing imports in base directory', () => {
-        const result = resolveImportSync('api/user/v1/user_service.proto', baseDir);
-        expect(result).toBe(userServicePath);
-      });
-
-      test('should resolve imports with include paths', () => {
-        const tempDir = path.join(os.tmpdir(), 'proto-test-sync-' + Date.now());
-        fs.mkdirSync(tempDir);
-        const testFile = path.join(tempDir, 'test.proto');
-        fs.writeFileSync(testFile, sampleProtoContent);
-
-        try {
-          const result = resolveImportSync('test.proto', '/non/existent', [tempDir]);
-          expect(result).toBe(testFile);
-        } finally {
-          fs.unlinkSync(testFile);
-          fs.rmdirSync(tempDir);
-        }
-      });
-
-      test('should return null for non-existent imports', () => {
-        const result = resolveImportSync('non-existent.proto', baseDir);
-        expect(result).toBeNull();
       });
     });
   });

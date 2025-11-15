@@ -1,5 +1,5 @@
 import { ProtoSet } from './ProtoSet';
-import { parseProtoDirectory, parseProtoDirectorySync } from './parser';
+import { parseProtoDirectory } from './parser';
 import { Proto } from './types';
 
 describe('ProtoSet', () => {
@@ -270,44 +270,6 @@ describe('parseProtoDirectory', () => {
   });
 });
 
-describe('parseProtoDirectorySync', () => {
-  it('should synchronously parse all proto files in fixtures/api directory', () => {
-    const protoSet = parseProtoDirectorySync('./fixtures/api');
-
-    expect(protoSet.size()).toBeGreaterThan(0);
-
-    // Check that we have some expected files
-    const fileNames = protoSet.getProtos().map(p => p.file);
-    expect(fileNames).toContain('errors.proto');
-    expect(fileNames).toContain('types.proto');
-
-    // Verify we have messages
-    const stats = protoSet.getStats();
-    expect(stats.messages).toBeGreaterThan(0);
-  });
-
-  it('should handle non-recursive parsing synchronously', () => {
-    const protoSet = parseProtoDirectorySync('./fixtures/examples', { recursive: false });
-
-    // Should only find files directly in fixtures/examples, not in subdirectories
-    const fileNames = protoSet.getProtos().map(p => p.file);
-    expect(fileNames).toContain('nested_structures.proto');
-
-    // Should not contain files from subdirectories
-    expect(fileNames).not.toContain('user.proto');
-  });
-
-  it('should throw error for non-existent directory synchronously', () => {
-    expect(() => parseProtoDirectorySync('./non-existent')).toThrow('Directory not found');
-  });
-
-  it('should return empty ProtoSet for directory with no proto files synchronously', () => {
-    const protoSet = parseProtoDirectorySync('./src');
-    expect(protoSet.size()).toBe(0);
-    expect(protoSet.isEmpty()).toBe(true);
-  });
-});
-
 describe('ProtoSet.from static methods', () => {
   const protoContent1 = `
     syntax = "proto3";
@@ -382,69 +344,6 @@ describe('ProtoSet.from static methods', () => {
       const consoleSpy = jest.spyOn(console, 'warn').mockImplementation();
 
       await expect(ProtoSet.from('./non-existent-file.proto', 'invalid proto content')).rejects.toThrow(
-        'Failed to parse any of the provided inputs',
-      );
-
-      consoleSpy.mockRestore();
-    });
-  });
-
-  describe('fromSync() synchronous method', () => {
-    it('should create ProtoSet from multiple proto content strings', () => {
-      const protoSet = ProtoSet.fromSync(protoContent1, protoContent2);
-
-      expect(protoSet.size()).toBe(2);
-      const messages = protoSet.getAllMessages();
-      expect(messages.map(m => m.name)).toContain('TestMessage1');
-      expect(messages.map(m => m.name)).toContain('Request');
-      expect(messages.map(m => m.name)).toContain('Response');
-    });
-
-    it('should create ProtoSet from file paths', () => {
-      const protoSet = ProtoSet.fromSync(
-        './fixtures/api/common/v1/errors.proto',
-        './fixtures/api/common/v1/types.proto',
-      );
-
-      expect(protoSet.size()).toBe(2);
-      expect(protoSet.getProtoByFile('errors.proto')).toBeDefined();
-      expect(protoSet.getProtoByFile('types.proto')).toBeDefined();
-    });
-
-    it('should create ProtoSet from mixed file paths and content', () => {
-      const protoSet = ProtoSet.fromSync('./fixtures/api/common/v1/errors.proto', protoContent1);
-
-      expect(protoSet.size()).toBe(2);
-      const messages = protoSet.getAllMessages();
-      expect(messages.some(m => m.name === 'TestMessage1')).toBe(true);
-    });
-
-    it('should accept ParseOptions as last argument', () => {
-      const protoSet = ProtoSet.fromSync(protoContent1, protoContent2, { keepCase: false });
-
-      expect(protoSet.size()).toBe(2);
-    });
-
-    it('should handle empty input list', () => {
-      const protoSet = ProtoSet.fromSync();
-      expect(protoSet.isEmpty()).toBe(true);
-    });
-
-    it('should continue parsing valid inputs when some fail', () => {
-      const consoleSpy = jest.spyOn(console, 'warn').mockImplementation();
-
-      const protoSet = ProtoSet.fromSync('./non-existent-file.proto', protoContent1, 'invalid proto content');
-
-      expect(protoSet.size()).toBe(1);
-      expect(consoleSpy).toHaveBeenCalled();
-
-      consoleSpy.mockRestore();
-    });
-
-    it('should throw error when all inputs fail to parse', () => {
-      const consoleSpy = jest.spyOn(console, 'warn').mockImplementation();
-
-      expect(() => ProtoSet.fromSync('./non-existent-file.proto', 'invalid proto content')).toThrow(
         'Failed to parse any of the provided inputs',
       );
 

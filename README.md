@@ -10,7 +10,7 @@ A TypeScript library for parsing Protocol Buffer (.proto) files, extracting mess
 
 - 🔍 **Parse from files or strings** - Load proto definitions from file paths or raw content
 - 📁 **Directory parsing** - Parse all .proto files in a directory recursively
-- 🔄 **Async and sync APIs** - Choose between promise-based or blocking operations
+- 🔄 **Promise-based async API** - Modern async/await patterns throughout
 - 🎯 **Complete parsing** - Extract messages, services, enums, oneofs, extensions, and nested structures
 - 📦 **Import resolution** - Automatically resolve imports including Google Well-Known Types
 - 🛡️ **Type-safe** - Full TypeScript support with comprehensive type definitions
@@ -75,13 +75,6 @@ const protoContent = `
 const proto = await parseProto(protoContent);
 ```
 
-### Synchronous Parsing
-
-```typescript
-import { parseProtoSync } from '@pseudomutojs/proto-parser';
-
-const proto = parseProtoSync('./path/to/your/file.proto');
-```
 
 ### Parse Directory
 
@@ -129,16 +122,6 @@ Asynchronously parses a Protocol Buffer file or content string.
 
 **Returns:** `Promise<Proto>` - A promise that resolves to a Proto object containing all parsed definitions
 
-#### `parseProtoSync(input, options?)`
-
-Synchronously parses a Protocol Buffer file or content string.
-
-**Parameters:**
-
-- `input` (string) - Either a file path to a .proto file or proto content string
-- `options` (ParseOptions, optional) - Parsing configuration options
-
-**Returns:** `Proto` - A Proto object containing all parsed definitions
 
 #### `parseProtoDirectory(dirPath, options?)`
 
@@ -151,16 +134,6 @@ Asynchronously parses all Protocol Buffer files in a directory.
 
 **Returns:** `Promise<ProtoSet>` - A promise that resolves to a ProtoSet containing all parsed proto files
 
-#### `parseProtoDirectorySync(dirPath, options?)`
-
-Synchronously parses all Protocol Buffer files in a directory.
-
-**Parameters:**
-
-- `dirPath` (string) - Path to the directory containing .proto files
-- `options` (DirectoryParseOptions, optional) - Directory parsing configuration options
-
-**Returns:** `ProtoSet` - A ProtoSet containing all parsed proto files
 
 ### ProtoSet Class
 
@@ -173,15 +146,11 @@ A collection of parsed Protocol Buffer files with methods to query and aggregate
 Creates a ProtoSet from multiple file paths and/or proto content strings.
 
 ```typescript
-// Async version
 const protoSet = await ProtoSet.from(
   './user.proto',
   'syntax = "proto3"; message Test { string id = 1; }',
   { keepCase: false } // optional ParseOptions
 );
-
-// Sync version
-const protoSet = ProtoSet.fromSync('./user.proto', './service.proto');
 ```
 
 #### Instance Methods
