@@ -1,0 +1,37 @@
+syntax = "proto3";
+
+package api.common.v1;
+
+import "google/protobuf/any.proto";
+import "google/protobuf/timestamp.proto";
+
+// Standard error codes
+enum ErrorCode {
+  ERROR_CODE_UNSPECIFIED = 0;
+  INVALID_ARGUMENT = 1;
+  NOT_FOUND = 2;
+  ALREADY_EXISTS = 3;
+  PERMISSION_DENIED = 4;
+  UNAUTHENTICATED = 5;
+  RESOURCE_EXHAUSTED = 6;
+  FAILED_PRECONDITION = 7;
+  INTERNAL = 8;
+  UNAVAILABLE = 9;
+  DEADLINE_EXCEEDED = 10;
+}
+
+// Error detail structure
+message ErrorDetail {
+  ErrorCode code = 1;
+  string message = 2;
+  string field = 3;
+  google.protobuf.Any details = 4;
+}
+
+// Error response
+message ErrorResponse {
+  string request_id = 1;
+  repeated ErrorDetail errors = 2;
+  google.protobuf.Timestamp timestamp = 3;
+}
+

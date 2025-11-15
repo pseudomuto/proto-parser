@@ -20,8 +20,8 @@ import {
 
 describe('utils', () => {
   const fixturesDir = path.join(process.cwd(), 'fixtures');
-  const simplePath = path.join(fixturesDir, 'simple.proto');
-  const nestedPath = path.join(fixturesDir, 'nested.proto');
+  const userServicePath = path.join(fixturesDir, 'api/user/v1/user_service.proto');
+  const nestedPath = path.join(fixturesDir, 'examples/nested_structures.proto');
   const nonExistentPath = path.join(fixturesDir, 'non-existent.proto');
 
   const sampleProtoContent = `syntax = "proto3";
@@ -40,7 +40,7 @@ message Test {
       });
 
       test('should return true for existing files', async () => {
-        expect(await isFilePath(simplePath)).toBe(true);
+        expect(await isFilePath(userServicePath)).toBe(true);
         expect(await isFilePath(nestedPath)).toBe(true);
       });
 
@@ -67,7 +67,7 @@ message Test {
       });
 
       test('should return true for existing files', () => {
-        expect(isFilePathSync(simplePath)).toBe(true);
+        expect(isFilePathSync(userServicePath)).toBe(true);
         expect(isFilePathSync(nestedPath)).toBe(true);
       });
 
@@ -91,9 +91,9 @@ message Test {
   describe('loadProtoContent', () => {
     describe('async version', () => {
       test('should load content from file path', async () => {
-        const content = await loadProtoContent(simplePath);
+        const content = await loadProtoContent(userServicePath);
         expect(content).toContain('syntax = "proto3"');
-        expect(content).toContain('package example');
+        expect(content).toContain('package api.user.v1');
         expect(content).toContain('service UserService');
       });
 
@@ -103,7 +103,7 @@ message Test {
       });
 
       test('should handle relative paths', async () => {
-        const relativePath = path.relative(process.cwd(), simplePath);
+        const relativePath = path.relative(process.cwd(), userServicePath);
         const content = await loadProtoContent(relativePath);
         expect(content).toContain('syntax = "proto3"');
       });
@@ -115,9 +115,9 @@ message Test {
 
     describe('sync version', () => {
       test('should load content from file path', () => {
-        const content = loadProtoContentSync(simplePath);
+        const content = loadProtoContentSync(userServicePath);
         expect(content).toContain('syntax = "proto3"');
-        expect(content).toContain('package example');
+        expect(content).toContain('package api.user.v1');
         expect(content).toContain('service UserService');
       });
 
@@ -127,7 +127,7 @@ message Test {
       });
 
       test('should handle relative paths', () => {
-        const relativePath = path.relative(process.cwd(), simplePath);
+        const relativePath = path.relative(process.cwd(), userServicePath);
         const content = loadProtoContentSync(relativePath);
         expect(content).toContain('syntax = "proto3"');
       });
@@ -141,12 +141,12 @@ message Test {
   describe('getProtoPath', () => {
     describe('async version', () => {
       test('should return resolved path for file paths', async () => {
-        const result = await getProtoPath(simplePath);
-        expect(result).toBe(path.resolve(simplePath));
+        const result = await getProtoPath(userServicePath);
+        expect(result).toBe(path.resolve(userServicePath));
       });
 
       test('should return resolved path for relative paths', async () => {
-        const relativePath = 'fixtures/simple.proto';
+        const relativePath = 'fixtures/api/user/v1/user_service.proto';
         const result = await getProtoPath(relativePath);
         expect(result).toBe(path.resolve(relativePath));
       });
@@ -164,12 +164,12 @@ message Test {
 
     describe('sync version', () => {
       test('should return resolved path for file paths', () => {
-        const result = getProtoPathSync(simplePath);
-        expect(result).toBe(path.resolve(simplePath));
+        const result = getProtoPathSync(userServicePath);
+        expect(result).toBe(path.resolve(userServicePath));
       });
 
       test('should return resolved path for relative paths', () => {
-        const relativePath = 'fixtures/simple.proto';
+        const relativePath = 'fixtures/api/user/v1/user_service.proto';
         const result = getProtoPathSync(relativePath);
         expect(result).toBe(path.resolve(relativePath));
       });
@@ -188,8 +188,8 @@ message Test {
 
   describe('getProtoDirectory', () => {
     test('should return directory of proto file', () => {
-      const result = getProtoDirectory(simplePath);
-      expect(result).toBe(path.dirname(simplePath));
+      const result = getProtoDirectory(userServicePath);
+      expect(result).toBe(path.dirname(userServicePath));
     });
 
     test('should return current working directory for empty path', () => {
@@ -209,8 +209,8 @@ message Test {
 
     describe('async version', () => {
       test('should resolve existing imports in base directory', async () => {
-        const result = await resolveImport('simple.proto', baseDir);
-        expect(result).toBe(simplePath);
+        const result = await resolveImport('api/user/v1/user_service.proto', baseDir);
+        expect(result).toBe(userServicePath);
       });
 
       test('should resolve imports with include paths', async () => {
@@ -254,8 +254,8 @@ message Test {
 
     describe('sync version', () => {
       test('should resolve existing imports in base directory', () => {
-        const result = resolveImportSync('simple.proto', baseDir);
-        expect(result).toBe(simplePath);
+        const result = resolveImportSync('api/user/v1/user_service.proto', baseDir);
+        expect(result).toBe(userServicePath);
       });
 
       test('should resolve imports with include paths', () => {
@@ -341,7 +341,7 @@ message Test {
 
   describe('fileExists', () => {
     test('should return true for existing files', async () => {
-      expect(await fileExists(simplePath)).toBe(true);
+      expect(await fileExists(userServicePath)).toBe(true);
       expect(await fileExists(nestedPath)).toBe(true);
     });
 
@@ -351,17 +351,17 @@ message Test {
     });
 
     test('should handle relative paths', async () => {
-      const relativePath = path.relative(process.cwd(), simplePath);
+      const relativePath = path.relative(process.cwd(), userServicePath);
       expect(await fileExists(relativePath)).toBe(true);
     });
   });
 
   describe('readFile', () => {
     test('should read file contents as UTF-8 string', async () => {
-      const content = await readFile(simplePath);
+      const content = await readFile(userServicePath);
       expect(typeof content).toBe('string');
       expect(content).toContain('syntax = "proto3"');
-      expect(content).toContain('package example');
+      expect(content).toContain('package api.user.v1');
     });
 
     test('should throw error for non-existent files', async () => {
@@ -369,14 +369,14 @@ message Test {
     });
 
     test('should handle relative paths', async () => {
-      const relativePath = path.relative(process.cwd(), simplePath);
+      const relativePath = path.relative(process.cwd(), userServicePath);
       const content = await readFile(relativePath);
       expect(content).toContain('syntax = "proto3"');
     });
 
     test('should read nested file correctly', async () => {
       const content = await readFile(nestedPath);
-      expect(content).toContain('package nested.example');
+      expect(content).toContain('package examples.nested');
       expect(content).toContain('OuterMessage');
     });
   });

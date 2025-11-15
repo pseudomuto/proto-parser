@@ -113,7 +113,7 @@ Synchronously parses a Protocol Buffer file or content string.
 interface ParseOptions {
   /** Additional directories to search for imported proto files */
   includePaths?: string[];
-  /** Whether to preserve field name casing (default: true) */
+  /** Whether to preserve field name casing (default: true) - when true, preserves snake_case; when false, converts to camelCase */
   keepCase?: boolean;
   /** Whether to include default values (default: true) */
   defaults?: boolean;
@@ -201,6 +201,26 @@ const proto = await parseProto('./api.proto', {
 });
 ```
 
+### Field Name Casing
+
+The `keepCase` option controls how field names are handled consistently across both file paths and content strings:
+
+```typescript
+// Proto file content:
+// message User {
+//   string user_name = 1;
+//   int32 user_id = 2;
+// }
+
+// With keepCase: true (default) - preserves original snake_case
+const proto1 = await parseProto('./user.proto', { keepCase: true });
+console.log(proto1.messages[0].fields[0].name); // "user_name"
+
+// With keepCase: false - converts to camelCase
+const proto2 = await parseProto('./user.proto', { keepCase: false });
+console.log(proto2.messages[0].fields[0].name); // "userName"
+```
+
 ### Working with Parsed Data
 
 ```typescript
@@ -285,9 +305,36 @@ try {
 } catch (error) {
   if (error.message.includes('ENOENT')) {
     console.error('Proto file not found');
+  } else if (error.message.includes('Cannot resolve import')) {
+    console.error('Import resolution failed:', error.message);
   } else {
     console.error('Failed to parse proto:', error.message);
   }
+}
+```
+
+### Import Resolution Errors
+
+Both file paths and content strings now handle import resolution errors consistently:
+
+```typescript
+// File path - import resolution error
+try {
+  const proto = await parseProto('./api.proto');
+} catch (error) {
+  console.error(error.message); // "Cannot resolve import: missing/file.proto"
+}
+
+// Content string - same error behavior
+try {
+  const protoContent = `
+    syntax = "proto3";
+    import "missing/file.proto";
+    message Test { string field = 1; }
+  `;
+  const proto = await parseProto(protoContent);
+} catch (error) {
+  console.error(error.message); // "Cannot resolve import: missing/file.proto"
 }
 ```
 

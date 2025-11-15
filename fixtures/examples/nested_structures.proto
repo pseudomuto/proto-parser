@@ -1,0 +1,79 @@
+syntax = "proto3";
+
+package examples.nested;
+
+// Deeply nested message structure to replace nested.proto coverage
+message OuterMessage {
+  string outer_field = 1;
+
+  message MiddleMessage {
+    string middle_field = 1;
+
+    message InnerMessage {
+      string inner_field = 1;
+      InnerEnum inner_enum = 2;
+    }
+
+    enum InnerEnum {
+      OPTION_UNKNOWN = 0;
+      OPTION_A = 1;
+      OPTION_B = 2;
+    }
+
+    InnerMessage inner_msg = 2;
+
+    // Additional nesting for comprehensive testing
+    message DeepMessage {
+      string deep_field = 1;
+
+      message VeryDeepMessage {
+        string very_deep_field = 1;
+        DeepEnum deep_enum = 2;
+
+        enum DeepEnum {
+          DEEP_UNKNOWN = 0;
+          DEEP_ONE = 1;
+          DEEP_TWO = 2;
+        }
+      }
+
+      VeryDeepMessage very_deep = 2;
+    }
+
+    DeepMessage deep = 3;
+  }
+
+  enum OuterEnum {
+    OUTER_UNKNOWN = 0;
+    OUTER_ONE = 1;
+    OUTER_TWO = 2;
+  }
+
+  MiddleMessage middle_msg = 2;
+  OuterEnum outer_enum = 3;
+
+  // Additional nested structures for comprehensive testing
+  message ConfigSection {
+    string name = 1;
+    map<string, string> settings = 2;
+
+    message NestedConfig {
+      bool enabled = 1;
+      repeated string values = 2;
+
+      enum Priority {
+        PRIORITY_UNSPECIFIED = 0;
+        LOW = 1;
+        MEDIUM = 2;
+        HIGH = 3;
+      }
+
+      Priority priority = 3;
+    }
+
+    NestedConfig nested = 3;
+  }
+
+  repeated ConfigSection configs = 4;
+}
+

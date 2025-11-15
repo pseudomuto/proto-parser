@@ -1,0 +1,82 @@
+syntax = "proto3";
+
+package api.inventory.v1;
+
+import "api/common/v1/types.proto";
+import "api/inventory/v1/inventory.proto";
+import "google/protobuf/empty.proto";
+import "google/protobuf/field_mask.proto";
+
+// Inventory management service
+service InventoryService {
+  // Product management
+  rpc GetProduct(GetProductRequest) returns (Product);
+  rpc ListProducts(ListProductsRequest) returns (ListProductsResponse);
+  rpc CreateProduct(CreateProductRequest) returns (Product);
+  rpc UpdateProduct(UpdateProductRequest) returns (Product);
+  rpc DeleteProduct(DeleteProductRequest) returns (google.protobuf.Empty);
+
+  // Inventory management
+  rpc GetInventoryItem(GetInventoryItemRequest) returns (InventoryItem);
+  rpc ListInventoryItems(ListInventoryItemsRequest) returns (ListInventoryItemsResponse);
+  rpc UpdateStock(UpdateStockRequest) returns (InventoryItem);
+
+  // Real-time stock updates
+  rpc StreamInventoryUpdates(google.protobuf.Empty) returns (stream InventoryItem);
+}
+
+// Request messages for product operations
+message GetProductRequest {
+  string id = 1;
+}
+
+message ListProductsRequest {
+  Category category = 1;
+  api.common.v1.PageRequest page = 2;
+  string search_query = 3;
+}
+
+message ListProductsResponse {
+  repeated Product products = 1;
+  api.common.v1.PageResponse page = 2;
+}
+
+message CreateProductRequest {
+  Product product = 1;
+  int32 initial_stock = 2;
+  string warehouse_id = 3;
+}
+
+message UpdateProductRequest {
+  Product product = 1;
+  google.protobuf.FieldMask update_mask = 2;
+}
+
+message DeleteProductRequest {
+  string id = 1;
+}
+
+// Request messages for inventory operations
+message GetInventoryItemRequest {
+  string id = 1;
+}
+
+message ListInventoryItemsRequest {
+  string warehouse_id = 1;
+  api.common.v1.Status status = 2;
+  api.common.v1.PageRequest page = 3;
+}
+
+message ListInventoryItemsResponse {
+  repeated InventoryItem items = 1;
+  api.common.v1.PageResponse page = 2;
+}
+
+message UpdateStockRequest {
+  string inventory_item_id = 1;
+  int32 quantity_change = 2;
+  StockMovement.MovementType movement_type = 3;
+  string reference_id = 4;
+  string notes = 5;
+}
+
