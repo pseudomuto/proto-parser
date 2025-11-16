@@ -1,0 +1,38 @@
+# Source files
+src/
+*.ts
+!dist/**/*.d.ts
+
+# Test files
+**/*.test.js
+**/*.test.ts
+fixtures/
+jest.config.ts
+babel.config.js
+
+# Development files
+.github/
+.husky/
+.direnv/
+.claude/
+scripts/
+*.md
+!README.md
+.envrc
+.prettierrc.js
+.prettierignore
+eslint.config.js
+tsconfig.json
+flake.nix
+flake.lock
+CLAUDE.md
+
+# IDE
+.vscode/
+.idea/
+
+# Logs and temp files
+*.log
+npm-debug.log*
+.DS_Store
+coverage/

@@ -24,14 +24,17 @@
   "license": "GPL-3.0-or-later",
   "author": "David Muto",
   "type": "commonjs",
-  "main": "index.ts",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
   "scripts": {
     "build": "tsc",
     "lint": "eslint . --ext .js,.ts",
     "fix": "eslint . --ext .js,.ts --fix",
     "test": "jest --watch",
     "test:ci": "jest",
-    "prepare": "husky"
+    "prepare": "husky",
+    "prepublishOnly": "npm run test:ci && npm run lint && npm run build",
+    "release": "bash scripts/release.sh"
   },
   "files": [
     "dist"
