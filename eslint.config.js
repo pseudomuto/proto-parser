@@ -6,6 +6,9 @@ const tsPlugin = require('@typescript-eslint/eslint-plugin');
 
 module.exports = defineConfig([
   {
+    ignores: ['dist/**/*'],
+  },
+  {
     files: ['**/*.ts'],
     ignores: ['**/*.test.ts', 'jest.config.ts'],
     languageOptions: {
