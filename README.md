@@ -4,7 +4,7 @@
 [![License](https://img.shields.io/npm/l/@pseudomutojs/proto-parser.svg)](https://github.com/pseudomuto/proto-parser/blob/main/LICENSE)
 [![Build Status](https://img.shields.io/github/actions/workflow/status/pseudomuto/proto-parser/ci.yml?branch=main)](https://github.com/pseudomuto/proto-parser/actions)
 
-A TypeScript library for parsing Protocol Buffer (.proto) files, extracting messages, services, enums, and other definitions from both file paths and proto content strings.
+A TypeScript library for parsing Protocol Buffer (.proto) files and generating unified IDL. Extract messages, services, enums, and other definitions from both file paths and proto content strings, with the ability to merge multiple proto files into a single IDL.
 
 ## Features
 
@@ -15,6 +15,8 @@ A TypeScript library for parsing Protocol Buffer (.proto) files, extracting mess
 - 📦 **Import resolution** - Automatically resolve imports including Google Well-Known Types
 - 🛡️ **Type-safe** - Full TypeScript support with comprehensive type definitions
 - 📚 **ProtoSet collections** - Manage and query multiple proto files as a unified set
+- ✨ **IDL Generation** - Generate unified proto IDL from multiple proto files with smart conflict resolution
+- 🔧 **Customizable output** - Control syntax version, package naming, and comment inclusion in generated IDL
 - ⚡ **Only 2 dependencies** - Built on `protobufjs` and `@grpc/proto-loader`
 
 ### Supported Features
@@ -107,6 +109,32 @@ const messages = protoSet.getAllMessages();
 const services = protoSet.getAllServices();
 ```
 
+### Generate Unified IDL
+
+```typescript
+import { parseProtoDirectory } from '@pseudomutojs/proto-parser';
+
+// Parse multiple proto files from a directory
+const protoSet = await parseProtoDirectory('./api/protos');
+
+// Generate a unified proto IDL containing all definitions
+const unifiedIdl = protoSet.generateSupersetIdl({
+  syntax: 'proto3',
+  packageName: 'unified.api',
+  includeComments: true
+});
+
+console.log(unifiedIdl);
+/* 
+Output: A complete proto file with:
+- All unique imports
+- All messages from all files
+- All services from all files  
+- All enums from all files
+- Proper namespace conflict resolution
+*/
+```
+
 ## API Reference
 
 ### Main Functions
@@ -161,9 +189,38 @@ const protoSet = await ProtoSet.from(
 - `getAllServices()` - Get all services from all protos
 - `getAllEnums()` - Get all enums from all protos (including nested)
 - `getAllImports()` - Get unique imports across all protos
+- `generateSupersetIdl(options?)` - Generate unified proto IDL from all files in the set
 - `size()` - Returns the number of proto files in the set
 - `isEmpty()` - Check if the set is empty
 - `getStats()` - Get statistics about the proto set
+
+##### `generateSupersetIdl(options?)`
+
+Generates a unified Protocol Buffer IDL file containing all definitions from the ProtoSet.
+
+**Parameters:**
+- `options` (SupersetOptions, optional) - Configuration options for IDL generation
+
+**Returns:** `string` - A complete proto IDL string
+
+**Example:**
+```typescript
+const protoSet = await parseProtoDirectory('./api/protos');
+
+// Generate with default options (proto3, with comments)
+const basicIdl = protoSet.generateSupersetIdl();
+
+// Generate with custom options
+const customIdl = protoSet.generateSupersetIdl({
+  syntax: 'proto3',
+  packageName: 'unified.api.v1',
+  includeComments: true,
+  namespaceConflictResolution: 'prefix'
+});
+
+console.log(customIdl);
+// Output: Complete proto file with all messages, services, enums, and imports
+```
 
 ### Configuration Options
 
@@ -182,6 +239,21 @@ interface ParseOptions {
 interface DirectoryParseOptions extends ParseOptions {
   /** Whether to recursively search subdirectories for .proto files (default: true) */
   recursive?: boolean;
+}
+
+interface SupersetOptions {
+  /** The proto syntax version to use in generated IDL (default: 'proto3') */
+  syntax?: 'proto2' | 'proto3';
+  /** The package name for the generated proto file */
+  packageName?: string;
+  /** Whether to include comments indicating source files and section headers (default: true) */
+  includeComments?: boolean;
+  /** 
+   * How to handle namespace conflicts when merging definitions (default: 'prefix')
+   * - 'prefix': Adds namespace prefix or numeric suffix to conflicting names
+   * - 'ignore': Keeps original names, may result in duplicates
+   */
+  namespaceConflictResolution?: 'prefix' | 'ignore';
 }
 ```
 
@@ -294,6 +366,78 @@ const customSet = await ProtoSet.from(
      string value = 2;
    }`
 );
+```
+
+### Generating Unified IDL
+
+The `generateSupersetIdl()` method allows you to merge multiple proto files into a single unified IDL file. This is useful for creating consolidated API documentation, generating single proto files for code generation tools, or merging microservice definitions.
+
+```typescript
+import { parseProtoDirectory } from '@pseudomutojs/proto-parser';
+
+// Parse microservice proto files
+const protoSet = await parseProtoDirectory('./microservices/protos', {
+  recursive: true,
+  includePaths: ['./shared/protos']
+});
+
+// Generate unified API proto
+const unifiedApi = protoSet.generateSupersetIdl({
+  syntax: 'proto3',
+  packageName: 'unified.microservices.v1',
+  includeComments: true,
+  namespaceConflictResolution: 'prefix'
+});
+
+// Save to file or use for code generation
+console.log(unifiedApi);
+/*
+Output:
+syntax = "proto3";
+
+package unified.microservices.v1;
+
+import "google/protobuf/timestamp.proto";
+import "google/protobuf/empty.proto";
+
+// Enum definitions
+// From: user-service.proto
+enum UserStatus {
+  USER_STATUS_UNKNOWN = 0;
+  USER_STATUS_ACTIVE = 1;
+  USER_STATUS_INACTIVE = 2;
+}
+
+// Message definitions
+// From: user-service.proto
+message User {
+  string id = 1;
+  string name = 2;
+  string email = 3;
+  UserStatus status = 4;
+  google.protobuf.Timestamp created_at = 5;
+}
+
+// From: order-service.proto
+message Order {
+  string id = 1;
+  string user_id = 2;
+  repeated OrderItem items = 3;
+}
+
+// Service definitions
+// From: user-service.proto
+service UserService {
+  rpc CreateUser(CreateUserRequest) returns (User);
+  rpc GetUser(GetUserRequest) returns (User);
+}
+*/
+
+// Handle namespace conflicts
+const protoWithConflicts = await parseProtoDirectory('./conflicting-services');
+const resolvedIdl = protoWithConflicts.generateSupersetIdl({
+  namespaceConflictResolution: 'prefix' // Prefixes conflicting names with namespace
+});
 ```
 
 ### Custom Include Paths
