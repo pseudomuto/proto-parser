@@ -210,3 +210,24 @@ export interface DirectoryParseOptions extends ParseOptions {
   /** Whether to recursively search subdirectories for .proto files (default: true) */
   recursive?: boolean;
 }
+
+/**
+ * Configuration options for generating superset IDL from a ProtoSet.
+ *
+ * @public
+ * @since 0.1.0
+ */
+export interface SupersetOptions {
+  /** The proto syntax version to use in generated IDL (default: 'proto3') */
+  syntax?: 'proto2' | 'proto3';
+  /** The package name for the generated proto file */
+  packageName?: string;
+  /** Whether to include comments indicating source files and section headers (default: true) */
+  includeComments?: boolean;
+  /**
+   * How to handle namespace conflicts when merging definitions (default: 'prefix')
+   * - 'prefix': Adds namespace prefix or numeric suffix to conflicting names
+   * - 'ignore': Keeps original names, may result in duplicates
+   */
+  namespaceConflictResolution?: 'prefix' | 'ignore';
+}

@@ -1,5 +1,5 @@
 import { parseProto } from './parser';
-import { Enum, Message, ParseOptions, Proto, Service } from './types';
+import { Enum, Field, Message, OneOf, ParseOptions, Proto, Service, ServiceMethod, SupersetOptions } from './types';
 
 /**
  * Represents a collection of parsed Protocol Buffer files.
@@ -269,5 +269,381 @@ export class ProtoSet {
         this.collectNestedEnums(nested, enums);
       }
     }
+  }
+
+  /**
+   * Generates a superset IDL containing all definitions from the ProtoSet.
+   *
+   * This method creates a single proto file that includes all messages, enums,
+   * services, and imports from all proto files in the set. Namespace conflicts
+   * can be resolved using configurable strategies (prefix with namespace or
+   * numeric suffix, or ignore conflicts).
+   *
+   * @param options - Configuration options for IDL generation
+   * @returns A string containing the complete proto IDL
+   *
+   * @example
+   * ```typescript
+   * const protoSet = await parseProtoDirectory('./protos');
+   * const supersetIdl = protoSet.generateSupersetIdl({
+   *   syntax: 'proto3',
+   *   packageName: 'unified.api',
+   *   includeComments: true
+   * });
+   * ```
+   *
+   * @public
+   * @since 0.1.0
+   */
+  generateSupersetIdl(options: SupersetOptions = {}): string {
+    const { syntax = 'proto3', packageName, includeComments = true, namespaceConflictResolution = 'prefix' } = options;
+
+    const lines: string[] = [];
+
+    // Add syntax declaration
+    lines.push(`syntax = "${syntax}";`);
+    lines.push('');
+
+    // Add package declaration if specified
+    if (packageName) {
+      lines.push(`package ${packageName};`);
+      lines.push('');
+    }
+
+    // Add all unique imports
+    const imports = this.getAllImports();
+    if (imports.length > 0) {
+      for (const importPath of imports) {
+        lines.push(`import "${importPath}";`);
+      }
+      lines.push('');
+    }
+
+    // Collect all definitions with conflict resolution
+    const { messages, enums, services } = this.collectAllDefinitionsWithConflictResolution(namespaceConflictResolution);
+
+    // Add enum definitions
+    if (enums.length > 0) {
+      if (includeComments) {
+        lines.push('// Enum definitions');
+      }
+      for (const enumDef of enums) {
+        if (includeComments && enumDef.sourceFile) {
+          lines.push(`// From: ${enumDef.sourceFile}`);
+        }
+        lines.push(...this.formatEnum(enumDef.enum, enumDef.resolvedName));
+        lines.push('');
+      }
+    }
+
+    // Add message definitions
+    if (messages.length > 0) {
+      if (includeComments) {
+        lines.push('// Message definitions');
+      }
+      for (const messageDef of messages) {
+        if (includeComments && messageDef.sourceFile) {
+          lines.push(`// From: ${messageDef.sourceFile}`);
+        }
+        lines.push(...this.formatMessage(messageDef.message, messageDef.resolvedName, 0));
+        lines.push('');
+      }
+    }
+
+    // Add service definitions
+    if (services.length > 0) {
+      if (includeComments) {
+        lines.push('// Service definitions');
+      }
+      for (const serviceDef of services) {
+        if (includeComments && serviceDef.sourceFile) {
+          lines.push(`// From: ${serviceDef.sourceFile}`);
+        }
+        lines.push(...this.formatService(serviceDef.service, serviceDef.resolvedName));
+        lines.push('');
+      }
+    }
+
+    return lines.join('\n').trim();
+  }
+
+  /**
+   * Collects all definitions with conflict resolution applied.
+   */
+  private collectAllDefinitionsWithConflictResolution(strategy: 'prefix' | 'ignore'): {
+    messages: Array<{ message: Message; resolvedName: string; sourceFile?: string }>;
+    enums: Array<{ enum: Enum; resolvedName: string; sourceFile?: string }>;
+    services: Array<{ service: Service; resolvedName: string; sourceFile?: string }>;
+  } {
+    const messages: Array<{ message: Message; resolvedName: string; sourceFile?: string }> = [];
+    const enums: Array<{ enum: Enum; resolvedName: string; sourceFile?: string }> = [];
+    const services: Array<{ service: Service; resolvedName: string; sourceFile?: string }> = [];
+
+    const nameTracker = {
+      messages: new Set<string>(),
+      enums: new Set<string>(),
+      services: new Set<string>(),
+    };
+
+    // Track suffix counters for names without namespaces
+    const suffixCounters = {
+      messages: new Map<string, number>(),
+      enums: new Map<string, number>(),
+      services: new Map<string, number>(),
+    };
+
+    for (const proto of this.#protos) {
+      // Process messages
+      if (proto.messages) {
+        for (const message of proto.messages) {
+          this.processDefinitionsRecursively(
+            message,
+            proto.file,
+            strategy,
+            nameTracker,
+            suffixCounters,
+            messages,
+            enums,
+          );
+        }
+      }
+
+      // Process top-level enums
+      if (proto.enums) {
+        for (const enumDef of proto.enums) {
+          const resolvedName = this.resolveNameConflict(
+            enumDef.name,
+            enumDef.namespace,
+            nameTracker.enums,
+            strategy,
+            suffixCounters.enums,
+          );
+          enums.push({ enum: enumDef, resolvedName, sourceFile: proto.file });
+          nameTracker.enums.add(resolvedName);
+        }
+      }
+
+      // Process services
+      if (proto.services) {
+        for (const service of proto.services) {
+          const resolvedName = this.resolveNameConflict(
+            service.name,
+            service.namespace,
+            nameTracker.services,
+            strategy,
+            suffixCounters.services,
+          );
+          services.push({ service, resolvedName, sourceFile: proto.file });
+          nameTracker.services.add(resolvedName);
+        }
+      }
+    }
+
+    return { messages, enums, services };
+  }
+
+  /**
+   * Recursively processes messages and their nested definitions.
+   */
+  private processDefinitionsRecursively(
+    message: Message,
+    sourceFile: string,
+    strategy: 'prefix' | 'ignore',
+    nameTracker: { messages: Set<string>; enums: Set<string>; services: Set<string> },
+    suffixCounters: { messages: Map<string, number>; enums: Map<string, number>; services: Map<string, number> },
+    messages: Array<{ message: Message; resolvedName: string; sourceFile?: string }>,
+    enums: Array<{ enum: Enum; resolvedName: string; sourceFile?: string }>,
+  ): void {
+    // Process the message itself
+    const resolvedMessageName = this.resolveNameConflict(
+      message.name,
+      message.namespace,
+      nameTracker.messages,
+      strategy,
+      suffixCounters.messages,
+    );
+    messages.push({ message, resolvedName: resolvedMessageName, sourceFile });
+    nameTracker.messages.add(resolvedMessageName);
+
+    // Process nested enums
+    if (message.nestedEnums) {
+      for (const enumDef of message.nestedEnums) {
+        const resolvedName = this.resolveNameConflict(
+          enumDef.name,
+          enumDef.namespace,
+          nameTracker.enums,
+          strategy,
+          suffixCounters.enums,
+        );
+        enums.push({ enum: enumDef, resolvedName, sourceFile });
+        nameTracker.enums.add(resolvedName);
+      }
+    }
+
+    // Process nested messages recursively
+    if (message.nestedMessages) {
+      for (const nestedMessage of message.nestedMessages) {
+        this.processDefinitionsRecursively(
+          nestedMessage,
+          sourceFile,
+          strategy,
+          nameTracker,
+          suffixCounters,
+          messages,
+          enums,
+        );
+      }
+    }
+  }
+
+  /**
+   * Resolves name conflicts based on the chosen strategy.
+   */
+  private resolveNameConflict(
+    name: string,
+    namespace: string,
+    usedNames: Set<string>,
+    strategy: 'prefix' | 'ignore',
+    suffixCounter?: Map<string, number>,
+  ): string {
+    if (strategy === 'ignore' || !usedNames.has(name)) {
+      return name;
+    }
+
+    // For prefix strategy, use namespace if available
+    if (namespace) {
+      const prefixedName = `${namespace.replace(/\./g, '_')}_${name}`;
+      return prefixedName;
+    }
+
+    // If no namespace is available, use numeric suffix as fallback
+    if (suffixCounter) {
+      const count = suffixCounter.get(name) || 1;
+      suffixCounter.set(name, count + 1);
+      return `${name}_${count + 1}`;
+    }
+
+    return name;
+  }
+
+  /**
+   * Formats a message definition as proto IDL.
+   */
+  private formatMessage(message: Message, name: string, indentLevel: number): string[] {
+    const indent = '  '.repeat(indentLevel);
+    const lines: string[] = [];
+
+    lines.push(`${indent}message ${name} {`);
+
+    // Group fields by oneof index
+    const oneofFields = new Map<number, Field[]>();
+    const regularFields: Field[] = [];
+
+    if (message.fields) {
+      for (const field of message.fields) {
+        if (field.oneofIndex !== undefined) {
+          const fields = oneofFields.get(field.oneofIndex) || [];
+          fields.push(field);
+          oneofFields.set(field.oneofIndex, fields);
+        } else {
+          regularFields.push(field);
+        }
+      }
+    }
+
+    // Add oneofs with their fields
+    if (message.oneofs) {
+      for (let i = 0; i < message.oneofs.length; i++) {
+        const oneof = message.oneofs[i];
+        const fields = oneofFields.get(i) || [];
+        lines.push(...this.formatOneof(oneof, fields, indentLevel + 1));
+      }
+    }
+
+    // Add regular fields (not part of any oneof)
+    for (const field of regularFields) {
+      lines.push(...this.formatField(field, indentLevel + 1));
+    }
+
+    // Note: Nested enums and messages are handled separately in the collection phase
+    // to avoid duplication in the generated IDL
+
+    lines.push(`${indent}}`);
+    return lines;
+  }
+
+  /**
+   * Formats an enum definition as proto IDL.
+   */
+  private formatEnum(enumDef: Enum, name: string, indentLevel: number = 0): string[] {
+    const indent = '  '.repeat(indentLevel);
+    const lines: string[] = [];
+
+    lines.push(`${indent}enum ${name} {`);
+
+    for (const value of enumDef.values) {
+      lines.push(`${indent}  ${value.name} = ${value.number};`);
+    }
+
+    lines.push(`${indent}}`);
+    return lines;
+  }
+
+  /**
+   * Formats a service definition as proto IDL.
+   */
+  private formatService(service: Service, name: string): string[] {
+    const lines: string[] = [];
+
+    lines.push(`service ${name} {`);
+
+    if (service.methods) {
+      for (const method of service.methods) {
+        lines.push(...this.formatServiceMethod(method));
+      }
+    }
+
+    lines.push('}');
+    return lines;
+  }
+
+  /**
+   * Formats a service method as proto IDL.
+   */
+  private formatServiceMethod(method: ServiceMethod): string[] {
+    const requestType = method.requestStream ? `stream ${method.requestType}` : method.requestType;
+    const responseType = method.responseStream ? `stream ${method.responseType}` : method.responseType;
+
+    return [`  rpc ${method.name}(${requestType}) returns (${responseType});`];
+  }
+
+  /**
+   * Formats a field as proto IDL.
+   */
+  private formatField(field: Field, indentLevel: number): string[] {
+    const indent = '  '.repeat(indentLevel);
+    const rule = field.rule ? `${field.rule} ` : '';
+
+    return [`${indent}${rule}${field.type} ${field.name} = ${field.number};`];
+  }
+
+  /**
+   * Formats a oneof as proto IDL.
+   */
+  private formatOneof(oneof: OneOf, fields: Field[], indentLevel: number): string[] {
+    const indent = '  '.repeat(indentLevel);
+    const lines: string[] = [];
+
+    lines.push(`${indent}oneof ${oneof.name} {`);
+
+    // Add the fields that belong to this oneof
+    for (const field of fields) {
+      // Oneof fields don't have rules (repeated, optional, required)
+      lines.push(`${indent}  ${field.type} ${field.name} = ${field.number};`);
+    }
+
+    lines.push(`${indent}}`);
+
+    return lines;
   }
 }
