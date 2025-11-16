@@ -1,6 +1,6 @@
 {
   "name": "@pseudomutojs/proto-parser",
-  "version": "0.0.1",
+  "version": "0.1.0",
   "description": "A TypeScript library for parsing Protocol Buffer (.proto) files and generating unified IDL. Extract messages, services, enums, and other definitions from both file paths and proto content strings, with the ability to merge multiple proto files into a single IDL.",
   "keywords": [
     "protobuf",
