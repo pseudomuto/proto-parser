@@ -78,4 +78,3 @@ message SearchUsersRequest {
   string query = 1;
   api.common.v1.PageRequest page = 2;
 }
-

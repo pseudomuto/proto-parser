@@ -231,3 +231,18 @@ export interface SupersetOptions {
    */
   namespaceConflictResolution?: 'prefix' | 'ignore';
 }
+
+/**
+ * Configuration options for parsing FileDescriptorSet files.
+ *
+ * @public
+ * @since 0.1.0
+ */
+export interface FileDescriptorSetParseOptions {
+  /** Whether to preserve field name casing (default: true) */
+  keepCase?: boolean;
+  /** Whether to generate import statements for dependencies (default: true) */
+  generateImports?: boolean;
+  /** Proto syntax to assume if not specified in descriptor (default: 'proto3') */
+  defaultSyntax?: 'proto2' | 'proto3';
+}

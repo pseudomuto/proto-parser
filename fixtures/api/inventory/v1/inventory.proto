@@ -82,4 +82,3 @@ message StockMovement {
     RETURN = 5;
   }
 }
-
