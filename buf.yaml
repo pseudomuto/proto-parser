@@ -1,0 +1,14 @@
+version: v2
+
+deps:
+  - buf.build/bufbuild/protovalidate:v1.0.0
+
+modules:
+  - path: fixtures
+
+lint:
+  enum_zero_value_suffix: _NONE
+  except:
+    - FIELD_NOT_REQUIRED
+    - PACKAGE_DIRECTORY_MATCH
+  disallow_comment_ignores: true

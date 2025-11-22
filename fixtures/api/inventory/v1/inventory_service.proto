@@ -79,4 +79,3 @@ message UpdateStockRequest {
   string reference_id = 4;
   string notes = 5;
 }
-

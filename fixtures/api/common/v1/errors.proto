@@ -34,4 +34,3 @@ message ErrorResponse {
   repeated ErrorDetail errors = 2;
   google.protobuf.Timestamp timestamp = 3;
 }
-

@@ -48,4 +48,3 @@ message AuthInfo {
   google.protobuf.Timestamp last_login = 3;
   bool email_verified = 4;
 }
-

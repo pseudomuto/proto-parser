@@ -76,4 +76,3 @@ message OuterMessage {
 
   repeated ConfigSection configs = 4;
 }
-
