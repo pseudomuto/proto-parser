@@ -1,18 +1,8 @@
 import * as fs from 'fs';
 import * as protobuf from 'protobufjs';
 
-import {
-  Enum,
-  EnumValue,
-  Field,
-  FieldRule,
-  FileDescriptorSetParseOptions,
-  Message,
-  OneOf,
-  Proto,
-  Service,
-  ServiceMethod,
-} from './types';
+import { ContentProcessor } from './ContentProcessor';
+import { Enum, FileDescriptorSetParseOptions, Message, Proto, Service } from './types';
 
 // TypeScript interfaces for FileDescriptor objects
 interface FieldDescriptor {
@@ -76,113 +66,6 @@ interface ExtendedProtobufField {
   repeated?: boolean;
   required?: boolean;
 }
-
-/**
- * Converts a protobuf.Field to our Field type
- */
-const convertField = (field: protobuf.Field): Field => {
-  let rule: FieldRule | undefined;
-  if (field.repeated) rule = 'repeated';
-  else if (field.required) rule = 'required';
-  else if (field.optional) rule = 'optional';
-
-  return {
-    name: field.name,
-    type: field.type,
-    number: field.id,
-    rule,
-    defaultValue: field.defaultValue,
-    options: field.options || {},
-    oneofIndex: field.partOf ? field.partOf.fieldsArray.indexOf(field) : undefined,
-  };
-};
-
-/**
- * Converts a protobuf.Enum to our Enum type
- */
-const convertEnum = (enumObj: protobuf.Enum, namespace: string): Enum => {
-  const values: EnumValue[] = Object.keys(enumObj.values).map(name => ({
-    name,
-    number: enumObj.values[name],
-    options: enumObj.valuesOptions?.[name] || {},
-  }));
-
-  return {
-    name: enumObj.name,
-    namespace,
-    values,
-    options: enumObj.options || {},
-  };
-};
-
-/**
- * Converts a protobuf.OneOf to our OneOf type
- */
-const convertOneof = (oneof: protobuf.OneOf): OneOf => {
-  return {
-    name: oneof.name,
-    fieldNames: oneof.fieldsArray.map(f => f.name),
-  };
-};
-
-/**
- * Converts a protobuf.Type to our Message type
- */
-const convertMessage = (type: protobuf.Type, namespace: string): Message => {
-  const fields = type.fieldsArray.map(convertField);
-  const nestedMessages: Message[] = [];
-  const nestedEnums: Enum[] = [];
-  const oneofs = type.oneofsArray.map(convertOneof);
-
-  // Process nested types
-  if (type.nested) {
-    for (const [, nested] of Object.entries(type.nested)) {
-      const nestedNamespace = namespace ? `${namespace}.${type.name}` : type.name;
-
-      if (nested instanceof protobuf.Type) {
-        nestedMessages.push(convertMessage(nested, nestedNamespace));
-      } else if (nested instanceof protobuf.Enum) {
-        nestedEnums.push(convertEnum(nested, nestedNamespace));
-      }
-    }
-  }
-
-  return {
-    name: type.name,
-    namespace,
-    fields: fields.length > 0 ? fields : undefined,
-    nestedMessages: nestedMessages.length > 0 ? nestedMessages : undefined,
-    nestedEnums: nestedEnums.length > 0 ? nestedEnums : undefined,
-    oneofs: oneofs.length > 0 ? oneofs : undefined,
-    extensions: [], // Extensions not commonly used in modern proto files
-    options: type.options || {},
-  };
-};
-
-/**
- * Converts a protobuf.Method to our ServiceMethod type
- */
-const convertMethod = (method: protobuf.Method): ServiceMethod => {
-  return {
-    name: method.name,
-    requestType: method.requestType,
-    responseType: method.responseType,
-    requestStream: method.requestStream || false,
-    responseStream: method.responseStream || false,
-    options: method.options || {},
-  };
-};
-
-/**
- * Converts a protobuf.Service to our Service type
- */
-const convertService = (service: protobuf.Service, namespace: string): Service => {
-  return {
-    name: service.name,
-    namespace,
-    methods: service.methodsArray.map(convertMethod),
-  };
-};
 
 /**
  * Generates proto IDL syntax from a protobuf namespace
@@ -391,11 +274,11 @@ const extractProtoFiles = (root: protobuf.Root, options: FileDescriptorSetParseO
     if (namespace.nested) {
       for (const [, nested] of Object.entries(namespace.nested)) {
         if (nested instanceof protobuf.Type) {
-          messages.push(convertMessage(nested, packageName));
+          messages.push(ContentProcessor.parseMessage(nested, packageName));
         } else if (nested instanceof protobuf.Enum) {
-          enums.push(convertEnum(nested, packageName));
+          enums.push(ContentProcessor.parseEnum(nested, packageName));
         } else if (nested instanceof protobuf.Service) {
-          services.push(convertService(nested, packageName));
+          services.push(ContentProcessor.parseService(nested, packageName));
         }
       }
     }
@@ -581,125 +464,4 @@ const getFieldTypeName = (field: FieldDescriptor): string => {
   };
 
   return typeMap[field.type] || 'unknown';
-};
-
-/**
- * Synchronous version of parseFileDescriptorSet.
- *
- * @param input - Either a file path to a JSON file or a FileDescriptorSet object
- * @param options - Options for parsing the descriptor set
- * @returns Array of Proto objects representing each file in the descriptor set
- * @throws {Error} When the file cannot be read or the descriptor set is invalid
- *
- * @public
- * @since 0.1.0
- */
-export const parseFileDescriptorSetSync = (
-  input: string | FileDescriptorSetInput,
-  options: FileDescriptorSetParseOptions = {},
-): Proto[] => {
-  let descriptorSetData: FileDescriptorSetData;
-
-  if (typeof input === 'string') {
-    // Load from file path
-    try {
-      const content = fs.readFileSync(input, 'utf-8');
-      const parsed = JSON.parse(content);
-
-      if (parsed.fileDescriptorSet) {
-        descriptorSetData = parsed.fileDescriptorSet;
-      } else if (parsed.file) {
-        // Direct FileDescriptorSet format
-        descriptorSetData = parsed;
-      } else {
-        throw new Error('Invalid FileDescriptorSet format - missing fileDescriptorSet or file property');
-      }
-    } catch (error) {
-      if (error instanceof SyntaxError) {
-        throw new Error(`Invalid JSON in FileDescriptorSet file: ${error.message}`);
-      }
-      throw new Error(`Failed to load FileDescriptorSet: ${error instanceof Error ? error.message : String(error)}`);
-    }
-  } else {
-    descriptorSetData = input.fileDescriptorSet;
-  }
-
-  if (!descriptorSetData.file || descriptorSetData.file.length === 0) {
-    throw new Error('FileDescriptorSet contains no file descriptors');
-  }
-
-  try {
-    // Load the descriptor.proto to get the FileDescriptorSet type
-    const descriptorRoot = protobuf.loadSync(require.resolve('protobufjs/google/protobuf/descriptor.proto'));
-    const FileDescriptorSet = descriptorRoot.lookupType('google.protobuf.FileDescriptorSet');
-
-    // Parse the FileDescriptorSet
-    const fileDescriptorSet = FileDescriptorSet.fromObject(descriptorSetData);
-
-    // Try to use the descriptor extension if available
-    let root: protobuf.Root;
-    try {
-      // eslint-disable-next-line @typescript-eslint/no-require-imports
-      require('protobufjs/ext/descriptor');
-      // protobufjs fromDescriptor method is dynamically added by ext/descriptor
-      root = (protobuf.Root as unknown as ExtendedProtobufRoot).fromDescriptor!(fileDescriptorSet);
-    } catch {
-      // Fallback: Load each file manually (same as async version)
-      root = new protobuf.Root();
-      for (const fileDesc of descriptorSetData.file) {
-        // Use package if available, otherwise use root namespace
-        const namespace = fileDesc.package ? root.define(fileDesc.package) : root;
-
-        // Add types from the file descriptor
-        if (fileDesc.messageType) {
-          for (const msgType of fileDesc.messageType) {
-            const type = new protobuf.Type(msgType.name);
-            if (msgType.field) {
-              for (const field of msgType.field) {
-                const fieldType = getFieldTypeName(field);
-                const pbField = new protobuf.Field(field.name, field.number, fieldType);
-                // Type assertions needed for protobufjs internal properties
-                if (field.label === 3) (pbField as ExtendedProtobufField).repeated = true; // LABEL_REPEATED
-                if (field.label === 2) (pbField as ExtendedProtobufField).required = true; // LABEL_REQUIRED
-                type.add(pbField);
-              }
-            }
-            namespace.add(type);
-          }
-        }
-
-        if (fileDesc.enumType) {
-          for (const enumType of fileDesc.enumType) {
-            const enumObj = new protobuf.Enum(enumType.name);
-            if (enumType.value) {
-              for (const value of enumType.value) {
-                enumObj.values[value.name] = value.number;
-              }
-            }
-            namespace.add(enumObj);
-          }
-        }
-
-        if (fileDesc.service) {
-          for (const serviceType of fileDesc.service) {
-            const service = new protobuf.Service(serviceType.name);
-            if (serviceType.method) {
-              for (const method of serviceType.method) {
-                const pbMethod = new protobuf.Method(method.name, 'rpc', method.inputType, method.outputType);
-                if (method.clientStreaming) pbMethod.requestStream = true;
-                if (method.serverStreaming) pbMethod.responseStream = true;
-                service.add(pbMethod);
-              }
-            }
-            namespace.add(service);
-          }
-        }
-      }
-    }
-
-    // Extract Proto objects with generated IDL
-    return extractProtoFiles(root, options);
-  } catch (error) {
-    throw new Error(`Failed to parse FileDescriptorSet: ${error instanceof Error ? error.message : String(error)}`);
-  }
 };

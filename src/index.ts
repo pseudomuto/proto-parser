@@ -9,7 +9,7 @@
  */
 
 export { parseProto, parseProtoDirectory } from './parser';
-export { parseFileDescriptorSet, parseFileDescriptorSetSync } from './descriptorParser';
+export { parseFileDescriptorSet } from './descriptorParser';
 export { ProtoSet } from './ProtoSet';
 export * from './types';
 export * from './utils';

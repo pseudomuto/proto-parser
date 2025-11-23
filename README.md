@@ -39,6 +39,10 @@ A TypeScript library for parsing Protocol Buffer (.proto) files and generating u
 npm install @pseudomutojs/proto-parser
 ```
 
+## Version Notes
+
+**v0.1.0+**: This library provides an async-only API. All parsing operations return Promises and should be used with `await` or `.then()`. Synchronous parsing methods are not available to ensure optimal performance with I/O operations and import resolution.
+
 ## Quick Start
 
 ### Parse from File
@@ -163,6 +167,34 @@ Asynchronously parses all Protocol Buffer files in a directory.
 **Returns:** `Promise<ProtoSet>` - A promise that resolves to a ProtoSet containing all parsed proto files
 
 
+#### `parseFileDescriptorSet(input, options?)`
+
+Parses a FileDescriptorSet from a JSON file or object. FileDescriptorSet is a protobuf format used to represent compiled proto files.
+
+**Parameters:**
+
+- `input` (string | FileDescriptorSetInput) - Either a file path to a JSON file or a FileDescriptorSet object
+- `options` (FileDescriptorSetParseOptions, optional) - Configuration options for parsing
+
+**Returns:** `Promise<Proto[]>` - A promise that resolves to an array of Proto objects
+
+**Example:**
+```typescript
+import { parseFileDescriptorSet } from '@pseudomutojs/proto-parser';
+
+// Parse from JSON file
+const protos = await parseFileDescriptorSet('./compiled-protos.json');
+
+// Parse from object
+const descriptorSet = {
+  fileDescriptorSet: {
+    file: [/* FileDescriptor objects */]
+  }
+};
+const protos = await parseFileDescriptorSet(descriptorSet);
+```
+
+
 ### ProtoSet Class
 
 A collection of parsed Protocol Buffer files with methods to query and aggregate definitions.
@@ -254,6 +286,15 @@ interface SupersetOptions {
    * - 'ignore': Keeps original names, may result in duplicates
    */
   namespaceConflictResolution?: 'prefix' | 'ignore';
+}
+
+interface FileDescriptorSetParseOptions {
+  /** Whether to preserve field name casing (default: true) */
+  keepCase?: boolean;
+  /** Whether to generate import statements for dependencies (default: true) */
+  generateImports?: boolean;
+  /** Proto syntax to assume if not specified in descriptor (default: 'proto3') */
+  defaultSyntax?: 'proto2' | 'proto3';
 }
 ```
 

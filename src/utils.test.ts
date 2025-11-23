@@ -1,5 +1,3 @@
-import * as fs from 'fs';
-import * as os from 'os';
 import * as path from 'path';
 
 import {
@@ -11,7 +9,6 @@ import {
   joinNamespace,
   loadProtoContent,
   readFile,
-  resolveImport,
 } from './utils';
 
 describe('utils', () => {
@@ -126,54 +123,8 @@ message Test {
     });
   });
 
-  describe('resolveImport', () => {
-    const baseDir = fixturesDir;
-
-    describe('async version', () => {
-      test('should resolve existing imports in base directory', async () => {
-        const result = await resolveImport('api/user/v1/user_service.proto', baseDir);
-        expect(result).toBe(userServicePath);
-      });
-
-      test('should resolve imports with include paths', async () => {
-        const tempDir = path.join(os.tmpdir(), 'proto-test-' + Date.now());
-        fs.mkdirSync(tempDir);
-        const testFile = path.join(tempDir, 'test.proto');
-        fs.writeFileSync(testFile, sampleProtoContent);
-
-        try {
-          const result = await resolveImport('test.proto', '/non/existent', [tempDir]);
-          expect(result).toBe(testFile);
-        } finally {
-          fs.unlinkSync(testFile);
-          fs.rmdirSync(tempDir);
-        }
-      });
-
-      test('should return null for non-existent imports', async () => {
-        const result = await resolveImport('non-existent.proto', baseDir);
-        expect(result).toBeNull();
-      });
-
-      test('should search in proto/protos subdirectories', async () => {
-        const tempDir = path.join(os.tmpdir(), 'proto-test-' + Date.now());
-        const protoSubDir = path.join(tempDir, 'proto');
-        fs.mkdirSync(tempDir);
-        fs.mkdirSync(protoSubDir);
-        const testFile = path.join(protoSubDir, 'test.proto');
-        fs.writeFileSync(testFile, sampleProtoContent);
-
-        try {
-          const result = await resolveImport('test.proto', tempDir);
-          expect(result).toBe(testFile);
-        } finally {
-          fs.unlinkSync(testFile);
-          fs.rmdirSync(protoSubDir);
-          fs.rmdirSync(tempDir);
-        }
-      });
-    });
-  });
+  // Note: resolveImport tests have been moved to ImportResolver.test.ts
+  // since that functionality is now handled by the ImportResolver class
 
   describe('extractNamespace', () => {
     test('should extract namespace and name from qualified names', () => {

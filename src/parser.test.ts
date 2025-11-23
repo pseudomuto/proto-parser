@@ -3,6 +3,19 @@ import * as path from 'path';
 import { parseProto } from './parser';
 import { readFile } from './utils';
 
+/**
+ * Integration tests for the parseProto function.
+ *
+ * These tests verify the entire parsing pipeline works correctly,
+ * including the interaction between:
+ * - ImportResolver (for resolving proto imports)
+ * - ContentProcessor (for parsing protobuf structures)
+ * - Main parser logic (for orchestrating the parsing process)
+ *
+ * For unit tests of individual components, see:
+ * - ContentProcessor.test.ts (parsing logic)
+ * - ImportResolver.test.ts (import resolution)
+ */
 describe('parseProto', () => {
   const fixturesDir = path.join(process.cwd(), 'fixtures');
   const includePaths = [fixturesDir];
