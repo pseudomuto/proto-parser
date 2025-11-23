@@ -2,10 +2,9 @@ import * as fs from 'fs';
 import * as path from 'path';
 import * as protobuf from 'protobufjs';
 
-import { ContentProcessor } from './ContentProcessor';
-import { ImportResolver } from './ImportResolver';
 import { ProtoSet } from './ProtoSet';
-import { DirectoryParseOptions, ParseOptions, Proto } from './types';
+import { createDefaultParseOptions } from './defaults';
+import { ContentProcessor, DirectoryParseOptions, ParseOptions, Proto, ResolvedParseOptions } from './types';
 import { getProtoDirectory, getProtoPath, loadProtoContent } from './utils';
 
 /**
@@ -16,12 +15,13 @@ const buildProtoResult = (
   protoPath: string,
   content: string,
   parsed: protobuf.IParserResult,
+  contentProcessor: ContentProcessor,
 ): Proto => {
   root.resolveAll();
 
-  const services = ContentProcessor.collectAllServices(root);
-  const messages = ContentProcessor.collectAllMessages(root);
-  const enums = ContentProcessor.collectAllEnums(root);
+  const services = contentProcessor.collectAllServices(root);
+  const messages = contentProcessor.collectAllMessages(root);
+  const enums = contentProcessor.collectAllEnums(root);
 
   return {
     file: protoPath ? path.basename(protoPath) : 'inline.proto',
@@ -39,29 +39,24 @@ const buildProtoResult = (
  */
 const parseProtoContent = async (
   input: string,
-  options: ParseOptions,
+  resolvedOptions: ResolvedParseOptions,
 ): Promise<{ root: protobuf.Root; parsed: protobuf.IParserResult; content: string; protoPath: string }> => {
   const content = await loadProtoContent(input);
   const protoPath = await getProtoPath(input);
-  const protoDir = getProtoDirectory(protoPath);
-
-  // Create import resolver based on whether this is a file path or content
-  const baseDir = protoPath ? protoDir : process.cwd();
-  const importResolver = new ImportResolver(baseDir, options);
 
   // First parse to get imports without loading to pre-validate
   const tempParsed = protobuf.parse(content, new protobuf.Root(), {
-    keepCase: options.keepCase !== false,
+    keepCase: resolvedOptions.keepCase,
   });
 
   // Pre-validate all imports can be resolved
   if (tempParsed.imports) {
-    await importResolver.validateImports(tempParsed.imports);
+    await resolvedOptions.importResolver.validateImports(tempParsed.imports);
   }
 
   // Create root with import resolver
   const root = new protobuf.Root();
-  root.resolvePath = importResolver.createProtobufResolver();
+  root.resolvePath = resolvedOptions.importResolver.createProtobufResolver();
 
   // Load all imports first using the root's resolvePath
   if (tempParsed.imports) {
@@ -69,7 +64,7 @@ const parseProtoContent = async (
       try {
         const resolvedPath = root.resolvePath('', importPath);
         if (resolvedPath) {
-          await root.load(resolvedPath, { keepCase: options.keepCase !== false });
+          await root.load(resolvedPath, { keepCase: resolvedOptions.keepCase });
         }
       } catch (err) {
         console.warn(`Failed to load import: ${importPath}`, err);
@@ -79,7 +74,7 @@ const parseProtoContent = async (
 
   // Parse the main content into the root that has all imports loaded
   const parsed = protobuf.parse(content, root, {
-    keepCase: options.keepCase !== false,
+    keepCase: resolvedOptions.keepCase,
   });
 
   return { root, parsed, content, protoPath };
@@ -117,8 +112,13 @@ const parseProtoContent = async (
  */
 export const parseProto = async (input: string, options: ParseOptions = {}): Promise<Proto> => {
   try {
-    const { root, parsed, content, protoPath } = await parseProtoContent(input, options);
-    return buildProtoResult(root, protoPath, content, parsed);
+    const protoPath = await getProtoPath(input);
+    const protoDir = getProtoDirectory(protoPath);
+    const baseDir = protoPath ? protoDir : process.cwd();
+    const resolvedOptions = createDefaultParseOptions(baseDir, options);
+
+    const { root, parsed, content, protoPath: finalProtoPath } = await parseProtoContent(input, resolvedOptions);
+    return buildProtoResult(root, finalProtoPath, content, parsed, resolvedOptions.contentProcessor);
   } catch (error) {
     throw new Error(`Failed to parse proto: ${error instanceof Error ? error.message : String(error)}`);
   }

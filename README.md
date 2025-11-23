@@ -13,6 +13,7 @@ A TypeScript library for parsing Protocol Buffer (.proto) files and generating u
 - 🔄 **Promise-based async API** - Modern async/await patterns throughout
 - 🎯 **Complete parsing** - Extract messages, services, enums, oneofs, extensions, and nested structures
 - 📦 **Import resolution** - Automatically resolve imports including Google Well-Known Types
+- 🔧 **Customizable import resolution** - Implement custom logic for resolving imports (caching, remote files, custom file systems)
 - 🛡️ **Type-safe** - Full TypeScript support with comprehensive type definitions
 - 📚 **ProtoSet collections** - Manage and query multiple proto files as a unified set
 - ✨ **IDL Generation** - Generate unified proto IDL from multiple proto files with smart conflict resolution
@@ -42,6 +43,15 @@ npm install @pseudomutojs/proto-parser
 ## Version Notes
 
 **v0.1.0+**: This library provides an async-only API. All parsing operations return Promises and should be used with `await` or `.then()`. Synchronous parsing methods are not available to ensure optimal performance with I/O operations and import resolution.
+
+## Architecture
+
+This library uses an **interface-driven architecture** that enables flexible customization while maintaining strong type safety. The core parsing logic is built around two key interfaces:
+
+- **`ImportResolver`**: Handles resolving import paths, supporting custom logic for different environments (local files, remote sources, caching, etc.)
+- **`ContentProcessor`**: Converts protobufjs objects to the library's internal types, enabling custom transformations and metadata extraction
+
+Both interfaces have default implementations (`DefaultImportResolver`, `DefaultContentProcessor`) that can be used as-is or extended for custom behavior. This design allows the library to adapt to different deployment scenarios while maintaining consistent parsing behavior.
 
 ## Quick Start
 
@@ -194,6 +204,69 @@ const descriptorSet = {
 const protos = await parseFileDescriptorSet(descriptorSet);
 ```
 
+#### `DefaultImportResolver` Class
+
+The default implementation of the `ImportResolver` interface, providing standard import resolution logic.
+
+**Constructor:**
+```typescript
+new DefaultImportResolver(baseDir: string, options?: ParseOptions)
+```
+
+**Usage:**
+```typescript
+import { DefaultImportResolver } from '@pseudomutojs/proto-parser';
+
+const resolver = new DefaultImportResolver('/base/directory', {
+  includePaths: ['./protos', './third_party']
+});
+
+// Extend for custom behavior
+class CustomResolver extends DefaultImportResolver {
+  async resolveImport(importPath: string): Promise<string | null> {
+    // Custom logic
+    return super.resolveImport(importPath);
+  }
+}
+```
+
+#### `DefaultContentProcessor` Class
+
+The default implementation of the `ContentProcessor` interface, handling conversion from protobufjs objects to internal types.
+
+**Usage:**
+```typescript
+import { DefaultContentProcessor } from '@pseudomutojs/proto-parser';
+
+// Extend for custom processing
+class CustomProcessor extends DefaultContentProcessor {
+  parseMessage(messageType: any, namespace: string) {
+    const result = super.parseMessage(messageType, namespace);
+    // Add custom processing
+    return result;
+  }
+}
+```
+
+#### `createDefaultParseOptions(baseDir, options?)`
+
+Helper function to create fully resolved ParseOptions with defaults populated.
+
+**Parameters:**
+- `baseDir` (string) - Base directory for import resolution
+- `options` (ParseOptions, optional) - Partial options to merge with defaults
+
+**Returns:** `ResolvedParseOptions` - Complete options with all fields populated
+
+**Usage:**
+```typescript
+import { createDefaultParseOptions } from '@pseudomutojs/proto-parser';
+
+const resolvedOptions = createDefaultParseOptions('/base/dir', {
+  includePaths: ['./protos'],
+  importResolver: new CustomImportResolver()
+});
+```
 
 ### ProtoSet Class
 
@@ -266,6 +339,10 @@ interface ParseOptions {
   defaults?: boolean;
   /** Whether to include oneof definitions (default: true) */
   oneofs?: boolean;
+  /** Custom content processor for converting protobufjs objects to internal types */
+  contentProcessor?: ContentProcessor;
+  /** Custom import resolver for resolving proto import paths */
+  importResolver?: ImportResolver;
 }
 
 interface DirectoryParseOptions extends ParseOptions {
@@ -295,6 +372,8 @@ interface FileDescriptorSetParseOptions {
   generateImports?: boolean;
   /** Proto syntax to assume if not specified in descriptor (default: 'proto3') */
   defaultSyntax?: 'proto2' | 'proto3';
+  /** Custom content processor for converting protobufjs objects to internal types */
+  contentProcessor?: ContentProcessor;
 }
 ```
 
@@ -366,6 +445,218 @@ type Message = {
 For complete type definitions, see the [TypeScript definitions](./src/types.ts).
 
 ## Advanced Usage
+
+### Custom Import Resolution
+
+The library supports custom import resolution logic through the `ImportResolver` interface. This enables powerful customization for different environments and use cases.
+
+#### Caching Import Resolver
+
+Implement caching to improve performance when parsing multiple files that share imports:
+
+```typescript
+import { DefaultImportResolver, parseProto } from '@pseudomutojs/proto-parser';
+
+class CachingImportResolver extends DefaultImportResolver {
+  private cache = new Map<string, string | null>();
+
+  async resolveImport(importPath: string): Promise<string | null> {
+    if (this.cache.has(importPath)) {
+      return this.cache.get(importPath)!;
+    }
+
+    const result = await super.resolveImport(importPath);
+    this.cache.set(importPath, result);
+    return result;
+  }
+}
+
+// Use the caching resolver
+const proto = await parseProto('./api.proto', {
+  importResolver: new CachingImportResolver('/base/dir', { includePaths: ['./protos'] })
+});
+```
+
+#### Remote Import Resolver
+
+Fetch imports from remote sources like GitHub or package registries:
+
+```typescript
+import { ImportResolver, parseProto } from '@pseudomutojs/proto-parser';
+
+class RemoteImportResolver implements ImportResolver {
+  constructor(private baseUrl: string) {}
+
+  async resolveImport(importPath: string): Promise<string | null> {
+    // Handle Well-Known Types locally
+    if (importPath.startsWith('google/protobuf/')) {
+      return importPath; // Let protobufjs handle WKTs
+    }
+
+    try {
+      const response = await fetch(`${this.baseUrl}/${importPath}`);
+      if (response.ok) {
+        // Return path to temporary file or cache
+        const content = await response.text();
+        return this.saveTempFile(importPath, content);
+      }
+    } catch (error) {
+      console.warn(`Failed to fetch remote import: ${importPath}`);
+    }
+    
+    return null;
+  }
+
+  async validateImports(imports: string[]): Promise<void> {
+    // Pre-validate that remote imports are accessible
+    for (const importPath of imports) {
+      if (!importPath.startsWith('google/protobuf/')) {
+        const resolved = await this.resolveImport(importPath);
+        if (!resolved) {
+          throw new Error(`Cannot resolve remote import: ${importPath}`);
+        }
+      }
+    }
+  }
+
+  createProtobufResolver() {
+    return (origin: string, target: string) => {
+      // Synchronous resolution - assumes imports were pre-cached by validateImports
+      return this.getCachedPath(target) || target;
+    };
+  }
+
+  private async saveTempFile(importPath: string, content: string): Promise<string> {
+    // Implementation to save to temp file and return path
+    // ...
+  }
+
+  private getCachedPath(importPath: string): string | null {
+    // Implementation to get cached file path
+    // ...
+  }
+}
+
+// Use remote resolver
+const proto = await parseProto('./api.proto', {
+  importResolver: new RemoteImportResolver('https://raw.githubusercontent.com/user/protos/main')
+});
+```
+
+#### Multi-Source Import Resolver
+
+Combine multiple resolution strategies:
+
+```typescript
+import { DefaultImportResolver } from '@pseudomutojs/proto-parser';
+
+class MultiSourceImportResolver extends DefaultImportResolver {
+  constructor(
+    baseDir: string,
+    private remoteSources: string[] = [],
+    options = {}
+  ) {
+    super(baseDir, options);
+  }
+
+  async resolveImport(importPath: string): Promise<string | null> {
+    // First try local resolution
+    const localResult = await super.resolveImport(importPath);
+    if (localResult) {
+      return localResult;
+    }
+
+    // Try remote sources
+    for (const remoteBase of this.remoteSources) {
+      try {
+        const remoteUrl = `${remoteBase}/${importPath}`;
+        const response = await fetch(remoteUrl);
+        if (response.ok) {
+          // Cache and return local path
+          return this.cacheRemoteFile(importPath, await response.text());
+        }
+      } catch (error) {
+        // Continue to next source
+      }
+    }
+
+    return null;
+  }
+
+  private async cacheRemoteFile(importPath: string, content: string): Promise<string> {
+    // Implementation to cache remote content locally
+    // ...
+  }
+}
+
+// Use multi-source resolver
+const proto = await parseProto('./api.proto', {
+  importResolver: new MultiSourceImportResolver('/local/protos', [
+    'https://raw.githubusercontent.com/googleapis/googleapis/master',
+    'https://raw.githubusercontent.com/grpc-ecosystem/grpc-gateway/master'
+  ])
+});
+```
+
+### Custom Content Processing
+
+The library also supports custom content processing through the `ContentProcessor` interface, allowing you to customize how protobufjs objects are converted to the library's internal types.
+
+#### Logging Content Processor
+
+Add logging to track parsing operations:
+
+```typescript
+import { DefaultContentProcessor, parseProto } from '@pseudomutojs/proto-parser';
+
+class LoggingContentProcessor extends DefaultContentProcessor {
+  parseMessage(messageType: any, namespace: string) {
+    console.log(`Parsing message: ${namespace}.${messageType.name}`);
+    return super.parseMessage(messageType, namespace);
+  }
+
+  parseService(service: any, namespace: string) {
+    console.log(`Parsing service: ${namespace}.${service.name} with ${service.methodsArray.length} methods`);
+    return super.parseService(service, namespace);
+  }
+}
+
+// Use logging processor
+const proto = await parseProto('./api.proto', {
+  contentProcessor: new LoggingContentProcessor()
+});
+```
+
+#### Custom Field Transformation
+
+Customize how fields are processed:
+
+```typescript
+import { DefaultContentProcessor } from '@pseudomutojs/proto-parser';
+
+class CustomFieldProcessor extends DefaultContentProcessor {
+  parseField(field: any) {
+    const result = super.parseField(field);
+    
+    // Add custom metadata to fields
+    if (field.options?.deprecated) {
+      result.customMetadata = { deprecated: true };
+    }
+    
+    // Transform field names for specific patterns
+    if (result.name.endsWith('_id')) {
+      result.customMetadata = { ...result.customMetadata, isIdentifier: true };
+    }
+    
+    return result;
+  }
+}
+
+// Use custom field processor
+const proto = await parseProto('./api.proto', {
+  contentProcessor: new CustomFieldProcessor()
+});
+```
 
 ### Working with ProtoSet
 

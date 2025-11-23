@@ -1,13 +1,14 @@
 import * as fs from 'fs';
 import * as path from 'path';
 
-import { ParseOptions } from './types';
+import { ImportResolver, ParseOptions } from './types';
 
 /**
+ * Default implementation of ImportResolver interface.
  * Handles all import resolution logic for proto files.
  * Provides async-only import resolution with support for include paths and well-known types.
  */
-export class ImportResolver {
+export class DefaultImportResolver implements ImportResolver {
   private readonly includePaths: string[];
   private readonly baseDir: string;
 

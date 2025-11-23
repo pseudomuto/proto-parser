@@ -1,7 +1,7 @@
 import * as fs from 'fs';
 import * as protobuf from 'protobufjs';
 
-import { ContentProcessor } from './ContentProcessor';
+import { DefaultContentProcessor } from './DefaultContentProcessor';
 import { Enum, FileDescriptorSetParseOptions, Message, Proto, Service } from './types';
 
 // TypeScript interfaces for FileDescriptor objects
@@ -206,6 +206,7 @@ const generateServiceIdl = (service: protobuf.Service, lines: string[], indent: 
  * Extracts file-specific content from a root and generates Proto objects
  */
 const extractProtoFiles = (root: protobuf.Root, options: FileDescriptorSetParseOptions): Proto[] => {
+  const contentProcessor = options.contentProcessor || new DefaultContentProcessor();
   const protos: Proto[] = [];
   const fileMap = new Map<string, { namespace: protobuf.Namespace; packageName: string; syntax: string }>();
 
@@ -274,11 +275,11 @@ const extractProtoFiles = (root: protobuf.Root, options: FileDescriptorSetParseO
     if (namespace.nested) {
       for (const [, nested] of Object.entries(namespace.nested)) {
         if (nested instanceof protobuf.Type) {
-          messages.push(ContentProcessor.parseMessage(nested, packageName));
+          messages.push(contentProcessor.parseMessage(nested, packageName));
         } else if (nested instanceof protobuf.Enum) {
-          enums.push(ContentProcessor.parseEnum(nested, packageName));
+          enums.push(contentProcessor.parseEnum(nested, packageName));
         } else if (nested instanceof protobuf.Service) {
-          services.push(ContentProcessor.parseService(nested, packageName));
+          services.push(contentProcessor.parseService(nested, packageName));
         }
       }
     }

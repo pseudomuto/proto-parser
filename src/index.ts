@@ -11,5 +11,12 @@
 export { parseProto, parseProtoDirectory } from './parser';
 export { parseFileDescriptorSet } from './descriptorParser';
 export { ProtoSet } from './ProtoSet';
+
+// Export interfaces and default implementations
+export { DefaultContentProcessor } from './DefaultContentProcessor';
+export { DefaultImportResolver } from './DefaultImportResolver';
+export { createDefaultParseOptions } from './defaults';
+
+// Export all types
 export * from './types';
 export * from './utils';
