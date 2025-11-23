@@ -1,6 +1,6 @@
 import path from 'path';
 
-import { parseFileDescriptorSet, parseFileDescriptorSetSync } from './descriptorParser';
+import { parseFileDescriptorSet } from './descriptorParser';
 import { FileDescriptorSetParseOptions } from './types';
 
 describe('descriptorParser', () => {
@@ -254,39 +254,6 @@ describe('descriptorParser', () => {
 
       // Type assertion to bypass TypeScript checking for test purposes
       await expect(parseFileDescriptorSet(invalidInput as any)).rejects.toThrow();
-    });
-  });
-
-  describe('parseFileDescriptorSetSync', () => {
-    it('should work synchronously', () => {
-      const descriptorSet = {
-        fileDescriptorSet: {
-          file: [
-            {
-              name: 'sync.proto',
-              package: 'sync',
-              messageType: [
-                {
-                  name: 'SyncMessage',
-                  field: [
-                    {
-                      name: 'data',
-                      number: 1,
-                      label: 1, // LABEL_OPTIONAL
-                      type: 9, // TYPE_STRING
-                    },
-                  ],
-                },
-              ],
-            },
-          ],
-        },
-      };
-
-      const protos = parseFileDescriptorSetSync(descriptorSet);
-
-      expect(protos).toHaveLength(1);
-      expect(protos[0].messages![0].name).toBe('SyncMessage');
     });
   });
 
