@@ -1,22 +1,23 @@
 import * as protobuf from 'protobufjs';
 
-import { Enum, EnumValue, Field, FieldRule, Message, OneOf, Service, ServiceMethod } from './types';
+import { ContentProcessor, Enum, EnumValue, Field, FieldRule, Message, OneOf, Service, ServiceMethod } from './types';
 import { joinNamespace } from './utils';
 
 /**
+ * Default implementation of ContentProcessor interface.
  * Handles conversion of protobufjs objects to our internal types.
  * Provides unified logic for parsing messages, enums, services, etc.
  */
-export class ContentProcessor {
+export class DefaultContentProcessor implements ContentProcessor {
   /**
    * Converts a protobuf.Field to our Field type.
    */
-  static parseField(field: protobuf.Field): Field {
+  parseField(field: protobuf.Field): Field {
     return {
       name: field.name,
       type: field.type,
       number: field.id,
-      rule: ContentProcessor.parseFieldRule(field),
+      rule: this.parseFieldRule(field),
       defaultValue: field.defaultValue,
       options: field.options || {},
       oneofIndex: field.partOf ? field.partOf.fieldsArray.indexOf(field) : undefined,
@@ -26,7 +27,7 @@ export class ContentProcessor {
   /**
    * Determines the field rule (repeated, required, optional).
    */
-  static parseFieldRule(field: protobuf.Field): FieldRule | undefined {
+  parseFieldRule(field: protobuf.Field): FieldRule | undefined {
     if (field.repeated) return 'repeated';
     if (field.required) return 'required';
     if (field.optional) return 'optional';
@@ -36,7 +37,7 @@ export class ContentProcessor {
   /**
    * Converts a protobuf.Enum value to our EnumValue type.
    */
-  static parseEnumValue(value: string, enumObj: protobuf.Enum): EnumValue {
+  parseEnumValue(value: string, enumObj: protobuf.Enum): EnumValue {
     return {
       name: value,
       number: enumObj.values[value],
@@ -47,11 +48,11 @@ export class ContentProcessor {
   /**
    * Converts a protobuf.Enum to our Enum type.
    */
-  static parseEnum(enumObj: protobuf.Enum, namespace: string): Enum {
+  parseEnum(enumObj: protobuf.Enum, namespace: string): Enum {
     return {
       name: enumObj.name,
       namespace,
-      values: Object.keys(enumObj.values).map(key => ContentProcessor.parseEnumValue(key, enumObj)),
+      values: Object.keys(enumObj.values).map(key => this.parseEnumValue(key, enumObj)),
       options: enumObj.options || {},
     };
   }
@@ -59,7 +60,7 @@ export class ContentProcessor {
   /**
    * Converts a protobuf.OneOf to our OneOf type.
    */
-  static parseOneof(oneof: protobuf.OneOf): OneOf {
+  parseOneof(oneof: protobuf.OneOf): OneOf {
     return {
       name: oneof.name,
       fieldNames: oneof.fieldsArray.map(f => f.name),
@@ -69,14 +70,14 @@ export class ContentProcessor {
   /**
    * Converts a protobuf.Type to our Message type.
    */
-  static parseMessage(messageType: protobuf.Type, namespace: string): Message {
+  parseMessage(messageType: protobuf.Type, namespace: string): Message {
     const message: Message = {
       name: messageType.name,
       namespace,
-      fields: messageType.fieldsArray.map(ContentProcessor.parseField),
+      fields: messageType.fieldsArray.map(field => this.parseField(field)),
       nestedMessages: [],
       nestedEnums: [],
-      oneofs: messageType.oneofsArray.map(ContentProcessor.parseOneof),
+      oneofs: messageType.oneofsArray.map(oneof => this.parseOneof(oneof)),
       extensions: [],
       options: messageType.options || {},
     };
@@ -89,10 +90,10 @@ export class ContentProcessor {
 
         if (nested instanceof protobuf.Type) {
           message.nestedMessages = message.nestedMessages || [];
-          message.nestedMessages.push(ContentProcessor.parseMessage(nested, nestedNamespace));
+          message.nestedMessages.push(this.parseMessage(nested, nestedNamespace));
         } else if (nested instanceof protobuf.Enum) {
           message.nestedEnums = message.nestedEnums || [];
-          message.nestedEnums.push(ContentProcessor.parseEnum(nested, nestedNamespace));
+          message.nestedEnums.push(this.parseEnum(nested, nestedNamespace));
         }
       }
     }
@@ -113,7 +114,7 @@ export class ContentProcessor {
   /**
    * Converts a protobuf.Method to our ServiceMethod type.
    */
-  static parseServiceMethod(method: protobuf.Method): ServiceMethod {
+  parseServiceMethod(method: protobuf.Method): ServiceMethod {
     return {
       name: method.name,
       requestType: method.requestType,
@@ -127,24 +128,24 @@ export class ContentProcessor {
   /**
    * Converts a protobuf.Service to our Service type.
    */
-  static parseService(service: protobuf.Service, namespace: string): Service {
+  parseService(service: protobuf.Service, namespace: string): Service {
     return {
       name: service.name,
       namespace,
-      methods: service.methodsArray.map(ContentProcessor.parseServiceMethod),
+      methods: service.methodsArray.map(method => this.parseServiceMethod(method)),
     };
   }
 
   /**
    * Recursively collects all messages from a protobuf namespace.
    */
-  static collectAllMessages(root: protobuf.Namespace, messages: Message[] = [], currentNamespace = ''): Message[] {
+  collectAllMessages(root: protobuf.Namespace, messages: Message[] = [], currentNamespace = ''): Message[] {
     if (root.nested) {
       for (const name of Object.keys(root.nested)) {
         const nested = root.nested[name];
 
         if (nested instanceof protobuf.Type) {
-          messages.push(ContentProcessor.parseMessage(nested, currentNamespace));
+          messages.push(this.parseMessage(nested, currentNamespace));
         }
 
         if (
@@ -153,7 +154,7 @@ export class ContentProcessor {
           !(nested instanceof protobuf.Service)
         ) {
           const nestedNamespace = currentNamespace ? `${currentNamespace}.${name}` : name;
-          ContentProcessor.collectAllMessages(nested, messages, nestedNamespace);
+          this.collectAllMessages(nested, messages, nestedNamespace);
         }
       }
     }
@@ -163,18 +164,18 @@ export class ContentProcessor {
   /**
    * Recursively collects all enums from a protobuf namespace.
    */
-  static collectAllEnums(root: protobuf.Namespace, enums: Enum[] = [], currentNamespace = ''): Enum[] {
+  collectAllEnums(root: protobuf.Namespace, enums: Enum[] = [], currentNamespace = ''): Enum[] {
     if (root.nested) {
       for (const name of Object.keys(root.nested)) {
         const nested = root.nested[name];
 
         if (nested instanceof protobuf.Enum) {
-          enums.push(ContentProcessor.parseEnum(nested, currentNamespace));
+          enums.push(this.parseEnum(nested, currentNamespace));
         }
 
         if (nested instanceof protobuf.Namespace && !(nested instanceof protobuf.Service)) {
           const nestedNamespace = currentNamespace ? `${currentNamespace}.${name}` : name;
-          ContentProcessor.collectAllEnums(nested, enums, nestedNamespace);
+          this.collectAllEnums(nested, enums, nestedNamespace);
         }
       }
     }
@@ -184,13 +185,13 @@ export class ContentProcessor {
   /**
    * Recursively collects all services from a protobuf namespace.
    */
-  static collectAllServices(root: protobuf.Namespace, services: Service[] = [], currentNamespace = ''): Service[] {
+  collectAllServices(root: protobuf.Namespace, services: Service[] = [], currentNamespace = ''): Service[] {
     if (root.nested) {
       for (const name of Object.keys(root.nested)) {
         const nested = root.nested[name];
 
         if (nested instanceof protobuf.Service) {
-          services.push(ContentProcessor.parseService(nested, currentNamespace));
+          services.push(this.parseService(nested, currentNamespace));
         }
 
         if (
@@ -199,7 +200,7 @@ export class ContentProcessor {
           !(nested instanceof protobuf.Service)
         ) {
           const nestedNamespace = currentNamespace ? `${currentNamespace}.${name}` : name;
-          ContentProcessor.collectAllServices(nested, services, nestedNamespace);
+          this.collectAllServices(nested, services, nestedNamespace);
         }
       }
     }

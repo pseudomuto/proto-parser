@@ -1,3 +1,5 @@
+import * as protobuf from 'protobufjs';
+
 /**
  * Generic options type for Protocol Buffer definitions.
  *
@@ -198,6 +200,10 @@ export interface ParseOptions {
   defaults?: boolean;
   /** Whether to include oneof definitions (default: true) */
   oneofs?: boolean;
+  /** Custom content processor for converting protobufjs objects to internal types */
+  contentProcessor?: ContentProcessor;
+  /** Custom import resolver for resolving proto import paths */
+  importResolver?: ImportResolver;
 }
 
 /**
@@ -233,6 +239,75 @@ export interface SupersetOptions {
 }
 
 /**
+ * Interface for content processing functionality.
+ * Handles conversion of protobufjs objects to our internal types.
+ *
+ * This interface uses proper protobufjs types to ensure full type safety and better
+ * developer experience when implementing custom content processors.
+ *
+ * @public
+ * @since 0.1.0
+ */
+export interface ContentProcessor {
+  /** Converts a protobuf.Field to our Field type */
+  parseField(field: protobuf.Field): Field;
+  /** Determines the field rule (repeated, required, optional) */
+  parseFieldRule(field: protobuf.Field): FieldRule | undefined;
+  /** Converts a protobuf.Enum value to our EnumValue type */
+  parseEnumValue(value: string, enumObj: protobuf.Enum): EnumValue;
+  /** Converts a protobuf.Enum to our Enum type */
+  parseEnum(enumObj: protobuf.Enum, namespace: string): Enum;
+  /** Converts a protobuf.OneOf to our OneOf type */
+  parseOneof(oneof: protobuf.OneOf): OneOf;
+  /** Converts a protobuf.Type to our Message type */
+  parseMessage(messageType: protobuf.Type, namespace: string): Message;
+  /** Converts a protobuf.Method to our ServiceMethod type */
+  parseServiceMethod(method: protobuf.Method): ServiceMethod;
+  /** Converts a protobuf.Service to our Service type */
+  parseService(service: protobuf.Service, namespace: string): Service;
+  /**
+   * Recursively collects all messages from a protobuf namespace and its nested namespaces.
+   * @param root - The root namespace to collect messages from
+   * @param messages - (Optional accumulator) Array of messages collected so far, used for recursive calls
+   * @param currentNamespace - (Optional) Current namespace path being processed, used to build full qualified names
+   * @returns Array containing all message definitions found in the namespace hierarchy
+   */
+  collectAllMessages(root: protobuf.Namespace, messages?: Message[], currentNamespace?: string): Message[];
+  /**
+   * Recursively collects all enums from a protobuf namespace and its nested namespaces.
+   * @param root - The root namespace to collect enums from
+   * @param enums - (Optional accumulator) Array of enums collected so far, used for recursive calls
+   * @param currentNamespace - (Optional) Current namespace path being processed, used to build full qualified names
+   * @returns Array containing all enum definitions found in the namespace hierarchy
+   */
+  collectAllEnums(root: protobuf.Namespace, enums?: Enum[], currentNamespace?: string): Enum[];
+  /**
+   * Recursively collects all services from a protobuf namespace and its nested namespaces.
+   * @param root - The root namespace to collect services from
+   * @param services - (Optional accumulator) Array of services collected so far, used for recursive calls
+   * @param currentNamespace - (Optional) Current namespace path being processed, used to build full qualified names
+   * @returns Array containing all service definitions found in the namespace hierarchy
+   */
+  collectAllServices(root: protobuf.Namespace, services?: Service[], currentNamespace?: string): Service[];
+}
+
+/**
+ * Interface for import resolution functionality.
+ * Handles async import resolution with support for include paths and well-known types.
+ *
+ * @public
+ * @since 0.1.0
+ */
+export interface ImportResolver {
+  /** Asynchronously resolves an import path to its full file system path */
+  resolveImport(importPath: string): Promise<string | null>;
+  /** Validates that all imports can be resolved before loading */
+  validateImports(imports: string[]): Promise<void>;
+  /** Creates a resolve path function compatible with protobufjs */
+  createProtobufResolver(): (origin: string, target: string) => string;
+}
+
+/**
  * Configuration options for parsing FileDescriptorSet files.
  *
  * @public
@@ -245,4 +320,26 @@ export interface FileDescriptorSetParseOptions {
   generateImports?: boolean;
   /** Proto syntax to assume if not specified in descriptor (default: 'proto3') */
   defaultSyntax?: 'proto2' | 'proto3';
+  /** Custom content processor for converting protobufjs objects to internal types */
+  contentProcessor?: ContentProcessor;
+}
+
+/**
+ * Internal type for ParseOptions with all fields populated with defaults.
+ *
+ * @internal
+ */
+export interface ResolvedParseOptions {
+  /** Additional directories to search for imported proto files */
+  includePaths: string[];
+  /** Whether to preserve field name casing */
+  keepCase: boolean;
+  /** Whether to include default values */
+  defaults: boolean;
+  /** Whether to include oneof definitions */
+  oneofs: boolean;
+  /** Content processor for converting protobufjs objects to internal types */
+  contentProcessor: ContentProcessor;
+  /** Import resolver for resolving proto import paths */
+  importResolver: ImportResolver;
 }
