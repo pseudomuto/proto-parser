@@ -10,7 +10,7 @@ module.exports = defineConfig([
   },
   {
     files: ['**/*.ts'],
-    ignores: ['**/*.test.ts', 'jest.config.ts'],
+    ignores: ['**/*.test.ts', 'jest.config.ts', 'examples/**/*.ts'],
     languageOptions: {
       parser: tsParser,
       parserOptions: {
@@ -47,6 +47,26 @@ module.exports = defineConfig([
       'no-unused-vars': 'off',
       '@typescript-eslint/no-unused-vars': 'warn',
       '@typescript-eslint/no-non-null-assertion': 'off',
+    },
+  },
+  {
+    files: ['examples/**/*.ts'],
+    languageOptions: {
+      parser: tsParser,
+      parserOptions: {
+        ecmaVersion: 2020,
+        sourceType: 'module',
+        // No project specified - uses standalone parsing for examples
+      },
+    },
+    plugins: {
+      '@typescript-eslint': tsPlugin,
+    },
+    rules: {
+      // Relaxed rules for examples
+      '@typescript-eslint/no-unused-vars': 'warn',
+      '@typescript-eslint/no-explicit-any': 'warn',
+      '@typescript-eslint/explicit-module-boundary-types': 'off',
     },
   },
   {
