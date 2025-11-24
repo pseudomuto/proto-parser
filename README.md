@@ -543,6 +543,14 @@ const proto = await parseProto('./api.proto', {
 });
 ```
 
+#### Buf Schema Registry Import Resolver
+
+For a complete example of resolving imports from the [Buf Schema Registry](https://buf.build), see the [BufImportResolver example](./examples/buf-import-resolver). It demonstrates:
+- Pattern-based module mapping (prefix, wildcard, exact matching)  
+- Fetching proto files from Buf's API
+- Local caching of downloaded files
+- Fallback to default resolution for non-Buf imports
+
 #### Multi-Source Import Resolver
 
 Combine multiple resolution strategies:

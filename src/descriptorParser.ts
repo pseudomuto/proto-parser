@@ -5,55 +5,167 @@ import { DefaultContentProcessor } from './DefaultContentProcessor';
 import { Enum, FileDescriptorSetParseOptions, Message, Proto, Service } from './types';
 
 // TypeScript interfaces for FileDescriptor objects
-interface FieldDescriptor {
+// We define our own simplified FileDescriptor interfaces rather than using
+// protobufjs/ext/descriptor types because:
+// 1. We only need a subset of fields for parsing and reconstruction
+// 2. The ext/descriptor types are in an optional extension package
+// 3. Our simplified types provide better type safety for our specific use case
+// 4. These interfaces match exactly what we extract and use in practice
+
+/**
+ * Represents a field descriptor from a protobuf FileDescriptor.
+ * Used for parsing and reconstructing proto field definitions.
+ *
+ * @public
+ * @since 0.1.0
+ */
+export interface FieldDescriptor {
+  /** The name of the field */
   name: string;
+  /** The field number (unique within the message) */
   number: number;
-  label?: number; // 1: OPTIONAL, 2: REQUIRED, 3: REPEATED
-  type?: number; // protobuf type enum
+  /** Field label: 1=OPTIONAL, 2=REQUIRED, 3=REPEATED */
+  label?: number;
+  /** Protobuf type enum value */
+  type?: number;
+  /** Type name for message/enum references */
   typeName?: string;
+  /** Index of the oneof declaration this field belongs to */
+  oneofIndex?: number;
+  /** Whether this field is explicitly marked as optional in proto3 */
+  proto3Optional?: boolean;
 }
 
-interface MessageDescriptor {
+/**
+ * Represents a message descriptor from a protobuf FileDescriptor.
+ * Contains all information needed to reconstruct a protobuf message definition.
+ *
+ * @public
+ * @since 0.1.0
+ */
+export interface MessageDescriptor {
+  /** The name of the message */
   name: string;
+  /** Array of field descriptors defined in this message */
   field?: FieldDescriptor[];
+  /** Array of nested enum descriptors */
+  enumType?: EnumDescriptor[];
+  /** Array of nested message descriptors */
+  nestedType?: MessageDescriptor[];
+  /** Array of oneof declarations with their names */
+  oneofDecl?: Array<{ name: string }>;
 }
 
-interface EnumValueDescriptor {
+/**
+ * Represents an enum value descriptor from a protobuf FileDescriptor.
+ * Contains the name and numeric value of an enum constant.
+ *
+ * @public
+ * @since 0.1.0
+ */
+export interface EnumValueDescriptor {
+  /** The name of the enum value */
   name: string;
+  /** The numeric value assigned to this enum constant */
   number: number;
 }
 
-interface EnumDescriptor {
+/**
+ * Represents an enum descriptor from a protobuf FileDescriptor.
+ * Contains the enum name and its possible values.
+ *
+ * @public
+ * @since 0.1.0
+ */
+export interface EnumDescriptor {
+  /** The name of the enum */
   name: string;
+  /** Array of enum value descriptors */
   value?: EnumValueDescriptor[];
 }
 
-interface MethodDescriptor {
+/**
+ * Represents a service method descriptor from a protobuf FileDescriptor.
+ * Contains all information needed to reconstruct a gRPC service method definition.
+ *
+ * @public
+ * @since 0.1.0
+ */
+export interface MethodDescriptor {
+  /** The name of the method */
   name: string;
+  /** The input message type name */
   inputType: string;
+  /** The output message type name */
   outputType: string;
+  /** Whether the client streams multiple requests */
   clientStreaming?: boolean;
+  /** Whether the server streams multiple responses */
   serverStreaming?: boolean;
 }
 
-interface ServiceDescriptor {
+/**
+ * Represents a service descriptor from a protobuf FileDescriptor.
+ * Contains the service name and its RPC methods.
+ *
+ * @public
+ * @since 0.1.0
+ */
+export interface ServiceDescriptor {
+  /** The name of the service */
   name: string;
+  /** Array of method descriptors for this service */
   method?: MethodDescriptor[];
 }
 
-interface FileDescriptor {
+/**
+ * Represents a file descriptor from a protobuf FileDescriptorSet.
+ * Contains all information about a single .proto file including its messages,
+ * services, enums, and metadata.
+ *
+ * @public
+ * @since 0.1.0
+ */
+export interface FileDescriptor {
+  /** The name of the proto file */
   name?: string;
+  /** The package declaration of the file */
   package?: string;
+  /** The syntax version (proto2 or proto3) */
+  syntax?: string;
+  /** Array of import dependencies */
+  dependency?: string[];
+  /** Array of message descriptors defined in this file */
   messageType?: MessageDescriptor[];
+  /** Array of enum descriptors defined in this file */
   enumType?: EnumDescriptor[];
+  /** Array of service descriptors defined in this file */
   service?: ServiceDescriptor[];
+  /** File-level options */
+  options?: Record<string, unknown>;
 }
 
-interface FileDescriptorSetData {
+/**
+ * Represents the data structure of a protobuf FileDescriptorSet.
+ * Contains an array of file descriptors representing multiple .proto files.
+ *
+ * @public
+ * @since 0.1.0
+ */
+export interface FileDescriptorSetData {
+  /** Array of file descriptors */
   file: FileDescriptor[];
 }
 
-interface FileDescriptorSetInput {
+/**
+ * Represents the input format for the parseFileDescriptorSet function.
+ * Wraps FileDescriptorSetData in the expected JSON structure.
+ *
+ * @public
+ * @since 0.1.0
+ */
+export interface FileDescriptorSetInput {
+  /** The file descriptor set data */
   fileDescriptorSet: FileDescriptorSetData;
 }
 
