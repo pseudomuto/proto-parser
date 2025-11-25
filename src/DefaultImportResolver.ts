@@ -1,7 +1,7 @@
 import * as fs from 'fs';
 import * as path from 'path';
 
-import { ImportResolver, ParseOptions } from './types';
+import { FileSystem, ImportResolver, ParseOptions } from './types';
 
 /**
  * Default implementation of ImportResolver interface.
@@ -11,9 +11,11 @@ import { ImportResolver, ParseOptions } from './types';
 export class DefaultImportResolver implements ImportResolver {
   protected readonly baseDir: string;
   protected readonly includePaths: string[];
+  protected readonly fileSystem: FileSystem;
 
-  constructor(baseDir: string, options: ParseOptions = {}) {
+  constructor(baseDir: string, fileSystem: FileSystem, options: ParseOptions = {}) {
     this.baseDir = baseDir;
+    this.fileSystem = fileSystem;
     this.includePaths = [
       baseDir,
       ...(options.includePaths || []),
@@ -29,13 +31,13 @@ export class DefaultImportResolver implements ImportResolver {
   async resolveImport(importPath: string): Promise<string | null> {
     // Check if it's an absolute path
     if (path.isAbsolute(importPath)) {
-      return (await this.fileExists(importPath)) ? importPath : null;
+      return (await this.fileSystem.exists(importPath)) ? importPath : null;
     }
 
     // Search through include paths
     for (const searchPath of this.includePaths) {
       const fullPath = path.join(searchPath, importPath);
-      if (await this.fileExists(fullPath)) {
+      if (await this.fileSystem.exists(fullPath)) {
         return fullPath;
       }
     }
@@ -119,13 +121,13 @@ export class DefaultImportResolver implements ImportResolver {
       const protobufjsDir = path.dirname(protobufjsPath);
       const googlePath = path.join(protobufjsDir, '..', importPath);
 
-      if (await this.fileExists(googlePath)) {
+      if (await this.fileSystem.exists(googlePath)) {
         return googlePath;
       }
 
       // Also try looking in node_modules
       const nodeModulesPath = path.join(process.cwd(), 'node_modules', 'protobufjs', importPath);
-      if (await this.fileExists(nodeModulesPath)) {
+      if (await this.fileSystem.exists(nodeModulesPath)) {
         return nodeModulesPath;
       }
     } catch {
@@ -133,16 +135,5 @@ export class DefaultImportResolver implements ImportResolver {
     }
 
     return null;
-  }
-
-  /**
-   * Asynchronously checks if a file exists.
-   */
-  private async fileExists(filePath: string): Promise<boolean> {
-    return new Promise(resolve => {
-      fs.access(filePath, fs.constants.F_OK, err => {
-        resolve(!err);
-      });
-    });
   }
 }

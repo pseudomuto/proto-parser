@@ -204,6 +204,8 @@ export interface ParseOptions {
   contentProcessor?: ContentProcessor;
   /** Custom import resolver for resolving proto import paths */
   importResolver?: ImportResolver;
+  /** Custom filesystem implementation for file operations */
+  fileSystem?: FileSystem;
 }
 
 /**
@@ -322,6 +324,8 @@ export interface FileDescriptorSetParseOptions {
   defaultSyntax?: 'proto2' | 'proto3';
   /** Custom content processor for converting protobufjs objects to internal types */
   contentProcessor?: ContentProcessor;
+  /** Custom filesystem implementation for file operations */
+  fileSystem?: FileSystem;
 }
 
 /**
@@ -342,6 +346,8 @@ export interface ResolvedParseOptions {
   contentProcessor: ContentProcessor;
   /** Import resolver for resolving proto import paths */
   importResolver: ImportResolver;
+  /** Filesystem implementation for file operations */
+  fileSystem: FileSystem;
 }
 
 /**
@@ -357,6 +363,28 @@ export interface FileSystem {
    * Throws an error if the file doesn't exist or isn't accessible.
    */
   access(path: string): Promise<void>;
+
+  /**
+   * Check if a file or directory exists.
+   * @param path File or directory path to check
+   * @returns Promise that resolves to true if exists, false otherwise
+   */
+  exists(path: string): Promise<boolean>;
+
+  /**
+   * Get file or directory stats.
+   * @param path File or directory path
+   * @returns Promise that resolves to fs.Stats object
+   */
+  stat(path: string): Promise<import('fs').Stats>;
+
+  /**
+   * Read directory contents.
+   * @param path Directory path to read
+   * @param options Options for reading directory
+   * @returns Promise that resolves to directory entries
+   */
+  readDir(path: string, options?: { withFileTypes?: boolean }): Promise<import('fs').Dirent[] | string[]>;
 
   /**
    * Create a directory.
@@ -376,7 +404,24 @@ export interface FileSystem {
   /**
    * Read a file.
    * @param path File path
-   * @returns File content as Buffer
+   * @param encoding Optional encoding for text files
+   * @returns File content as Buffer or string
    */
   readFile(path: string): Promise<Buffer>;
+  readFile(path: string, encoding: BufferEncoding): Promise<string>;
+
+  /**
+   * Read content from either a file path or return the input if it's already content.
+   * Determines if input is a file path by checking for proto patterns and file existence.
+   * @param input Either a file path to a .proto file or proto content string
+   * @returns Promise that resolves to object with content and filePath
+   */
+  readFileOrLiteral(input: string): Promise<{ content: string; filePath: string }>;
+
+  /**
+   * Get the full file path if input is a valid file path, empty string otherwise.
+   * @param input Either a file path to a .proto file or proto content string
+   * @returns Promise that resolves to full file path or empty string
+   */
+  filePathIfExists(input: string): Promise<string>;
 }

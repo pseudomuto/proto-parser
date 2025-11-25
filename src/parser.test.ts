@@ -1,7 +1,7 @@
 import * as path from 'path';
 
+import { DefaultFileSystem } from './DefaultFileSystem';
 import { parseProto } from './parser';
-import { readFile } from './utils';
 
 /**
  * Integration tests for the parseProto function.
@@ -37,7 +37,8 @@ describe('parseProto', () => {
     });
 
     test('should parse proto from string content', async () => {
-      const content = await readFile(userServicePath);
+      const fileSystem = new DefaultFileSystem();
+      const content = await fileSystem.readFile(userServicePath, 'utf-8');
       const result = await parseProto(content, { includePaths });
 
       expect(result.file).toBe('inline.proto');

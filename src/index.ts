@@ -35,4 +35,3 @@ export { createDefaultParseOptions } from './defaults';
 
 // Export all types
 export * from './types';
-export * from './utils';

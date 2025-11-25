@@ -2,10 +2,18 @@ import * as fs from 'fs';
 import * as path from 'path';
 import * as protobuf from 'protobufjs';
 
+import { DefaultFileSystem } from './DefaultFileSystem';
 import { ProtoSet } from './ProtoSet';
 import { createDefaultParseOptions } from './defaults';
-import { ContentProcessor, DirectoryParseOptions, ParseOptions, Proto, ResolvedParseOptions } from './types';
-import { getProtoDirectory, getProtoPath, loadProtoContent } from './utils';
+import {
+  ContentProcessor,
+  DirectoryParseOptions,
+  FileSystem,
+  ParseOptions,
+  Proto,
+  ResolvedParseOptions,
+} from './types';
+import { getProtoDirectory } from './utils';
 
 /**
  * Builds the final Proto result object from the parsed root and metadata
@@ -41,8 +49,7 @@ const parseProtoContent = async (
   input: string,
   resolvedOptions: ResolvedParseOptions,
 ): Promise<{ root: protobuf.Root; parsed: protobuf.IParserResult; content: string; protoPath: string }> => {
-  const content = await loadProtoContent(input);
-  const protoPath = await getProtoPath(input);
+  const { content, filePath: protoPath } = await resolvedOptions.fileSystem.readFileOrLiteral(input);
 
   // First parse to get imports without loading to pre-validate
   const tempParsed = protobuf.parse(content, new protobuf.Root(), {
@@ -112,10 +119,11 @@ const parseProtoContent = async (
  */
 export const parseProto = async (input: string, options: ParseOptions = {}): Promise<Proto> => {
   try {
-    const protoPath = await getProtoPath(input);
+    const fileSystem = options.fileSystem || new DefaultFileSystem();
+    const protoPath = await fileSystem.filePathIfExists(input);
     const protoDir = getProtoDirectory(protoPath);
     const baseDir = protoPath ? protoDir : process.cwd();
-    const resolvedOptions = createDefaultParseOptions(baseDir, options);
+    const resolvedOptions = createDefaultParseOptions(baseDir, { ...options, fileSystem });
 
     const { root, parsed, content, protoPath: finalProtoPath } = await parseProtoContent(input, resolvedOptions);
     return buildProtoResult(root, finalProtoPath, content, parsed, resolvedOptions.contentProcessor);
@@ -127,12 +135,16 @@ export const parseProto = async (input: string, options: ParseOptions = {}): Pro
 /**
  * Asynchronously finds all .proto files in a directory and returns their paths.
  */
-const findProtoFiles = async (dirPath: string, recursive: boolean = true): Promise<string[]> => {
+const findProtoFiles = async (
+  dirPath: string,
+  fileSystem: FileSystem,
+  recursive: boolean = true,
+): Promise<string[]> => {
   const protoFiles: string[] = [];
 
   const scanDirectory = async (currentDir: string): Promise<void> => {
     try {
-      const entries = await fs.promises.readdir(currentDir, { withFileTypes: true });
+      const entries = (await fileSystem.readDir(currentDir, { withFileTypes: true })) as fs.Dirent[];
 
       for (const entry of entries) {
         const fullPath = path.join(currentDir, entry.name);
@@ -183,11 +195,12 @@ const findProtoFiles = async (dirPath: string, recursive: boolean = true): Promi
  */
 export const parseProtoDirectory = async (dirPath: string, options: DirectoryParseOptions = {}): Promise<ProtoSet> => {
   const { recursive = true, ...parseOptions } = options;
+  const fileSystem = options.fileSystem || new DefaultFileSystem();
 
   // Validate directory exists
   const resolvedDirPath = path.resolve(dirPath);
   try {
-    const stats = await fs.promises.stat(resolvedDirPath);
+    const stats = await fileSystem.stat(resolvedDirPath);
     if (!stats.isDirectory()) {
       throw new Error(`Path is not a directory: ${dirPath}`);
     }
@@ -203,7 +216,7 @@ export const parseProtoDirectory = async (dirPath: string, options: DirectoryPar
   }
 
   // Find all proto files
-  const protoFilePaths = await findProtoFiles(resolvedDirPath, recursive);
+  const protoFilePaths = await findProtoFiles(resolvedDirPath, fileSystem, recursive);
 
   if (protoFilePaths.length === 0) {
     return new ProtoSet([]);
@@ -220,6 +233,7 @@ export const parseProtoDirectory = async (dirPath: string, options: DirectoryPar
 
   const enhancedOptions: ParseOptions = {
     ...parseOptions,
+    fileSystem,
     includePaths: [...parentDirs, ...(parseOptions.includePaths || [])],
   };
 
