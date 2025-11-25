@@ -248,7 +248,7 @@ export interface SupersetOptions {
  * developer experience when implementing custom content processors.
  *
  * @public
- * @since 0.1.0
+ * @since 0.2.0
  */
 export interface ContentProcessor {
   /** Converts a protobuf.Field to our Field type */
@@ -298,7 +298,7 @@ export interface ContentProcessor {
  * Handles async import resolution with support for include paths and well-known types.
  *
  * @public
- * @since 0.1.0
+ * @since 0.2.0
  */
 export interface ImportResolver {
   /** Asynchronously resolves an import path to its full file system path */
@@ -313,7 +313,7 @@ export interface ImportResolver {
  * Configuration options for parsing FileDescriptorSet files.
  *
  * @public
- * @since 0.1.0
+ * @since 0.2.0
  */
 export interface FileDescriptorSetParseOptions {
   /** Whether to preserve field name casing (default: true) */
@@ -355,7 +355,7 @@ export interface ResolvedParseOptions {
  * Allows for dependency injection and easier testing.
  *
  * @public
- * @since 0.1.0
+ * @since 0.2.0
  */
 export interface FileSystem {
   /**
