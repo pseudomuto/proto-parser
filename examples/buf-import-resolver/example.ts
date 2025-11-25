@@ -1,7 +1,6 @@
 import * as path from 'path';
 
-import { parseProto } from '../../src';
-import { BufImportResolver } from './BufImportResolver';
+import { BufImportResolver, parseProto } from '../../src';
 
 /**
  * Example demonstrating how to use the BufImportResolver to resolve

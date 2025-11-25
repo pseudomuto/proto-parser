@@ -343,3 +343,40 @@ export interface ResolvedParseOptions {
   /** Import resolver for resolving proto import paths */
   importResolver: ImportResolver;
 }
+
+/**
+ * FileSystem interface for abstracting file operations.
+ * Allows for dependency injection and easier testing.
+ *
+ * @public
+ * @since 0.1.0
+ */
+export interface FileSystem {
+  /**
+   * Check access to a file or directory.
+   * Throws an error if the file doesn't exist or isn't accessible.
+   */
+  access(path: string): Promise<void>;
+
+  /**
+   * Create a directory.
+   * @param path Directory path to create
+   * @param options Options including recursive creation
+   */
+  mkdir(path: string, options?: { recursive?: boolean }): Promise<void>;
+
+  /**
+   * Write a file with content.
+   * @param path File path
+   * @param content File content
+   * @param encoding File encoding (e.g., 'utf8')
+   */
+  writeFile(path: string, content: string, encoding: BufferEncoding): Promise<void>;
+
+  /**
+   * Read a file.
+   * @param path File path
+   * @returns File content as Buffer
+   */
+  readFile(path: string): Promise<Buffer>;
+}
