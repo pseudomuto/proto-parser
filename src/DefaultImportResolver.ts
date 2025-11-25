@@ -9,8 +9,8 @@ import { ImportResolver, ParseOptions } from './types';
  * Provides async-only import resolution with support for include paths and well-known types.
  */
 export class DefaultImportResolver implements ImportResolver {
-  private readonly includePaths: string[];
-  private readonly baseDir: string;
+  protected readonly baseDir: string;
+  protected readonly includePaths: string[];
 
   constructor(baseDir: string, options: ParseOptions = {}) {
     this.baseDir = baseDir;

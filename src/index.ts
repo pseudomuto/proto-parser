@@ -28,6 +28,9 @@ export type {
 // Export interfaces and default implementations
 export { DefaultContentProcessor } from './DefaultContentProcessor';
 export { DefaultImportResolver } from './DefaultImportResolver';
+export { DefaultFileSystem } from './DefaultFileSystem';
+export { BufImportResolver, BufApiError, BufConfigurationError } from './BufImportResolver';
+export type { BufImportResolverOptions } from './BufImportResolver';
 export { createDefaultParseOptions } from './defaults';
 
 // Export all types
