@@ -318,5 +318,28 @@ describe('DefaultImportResolver', () => {
       const result = await resolver.resolveImport('test.proto');
       expect(result).toBe(file1);
     });
+
+    it('should return null when well-known type cannot be resolved', async () => {
+      const baseDir = '/test/base';
+      const resolver = new DefaultImportResolver(baseDir, fileSystem);
+
+      // Use jest.spyOn instead of replacing global require - safer approach
+      const requireResolveSpy = jest.spyOn(require, 'resolve').mockImplementation(() => {
+        throw new Error('Module not found');
+      });
+
+      try {
+        // Mock all filesystem paths to not exist
+        const enoentError = new Error('ENOENT: no such file or directory') as NodeJS.ErrnoException;
+        enoentError.code = 'ENOENT';
+        mockedFs.promises.access.mockRejectedValue(enoentError);
+
+        const result = await resolver.resolveImport('google/protobuf/any.proto');
+        expect(result).toBeNull();
+      } finally {
+        // Ensure spy is always restored even if test fails
+        requireResolveSpy.mockRestore();
+      }
+    });
   });
 });
