@@ -17,7 +17,7 @@ import { Enum, FileDescriptorSetParseOptions, Message, Proto, Service } from './
  * Used for parsing and reconstructing proto field definitions.
  *
  * @public
- * @since 0.1.0
+ * @since 0.2.0
  */
 export interface FieldDescriptor {
   /** The name of the field */
@@ -41,7 +41,7 @@ export interface FieldDescriptor {
  * Contains all information needed to reconstruct a protobuf message definition.
  *
  * @public
- * @since 0.1.0
+ * @since 0.2.0
  */
 export interface MessageDescriptor {
   /** The name of the message */
@@ -61,7 +61,7 @@ export interface MessageDescriptor {
  * Contains the name and numeric value of an enum constant.
  *
  * @public
- * @since 0.1.0
+ * @since 0.2.0
  */
 export interface EnumValueDescriptor {
   /** The name of the enum value */
@@ -75,7 +75,7 @@ export interface EnumValueDescriptor {
  * Contains the enum name and its possible values.
  *
  * @public
- * @since 0.1.0
+ * @since 0.2.0
  */
 export interface EnumDescriptor {
   /** The name of the enum */
@@ -89,7 +89,7 @@ export interface EnumDescriptor {
  * Contains all information needed to reconstruct a gRPC service method definition.
  *
  * @public
- * @since 0.1.0
+ * @since 0.2.0
  */
 export interface MethodDescriptor {
   /** The name of the method */
@@ -109,7 +109,7 @@ export interface MethodDescriptor {
  * Contains the service name and its RPC methods.
  *
  * @public
- * @since 0.1.0
+ * @since 0.2.0
  */
 export interface ServiceDescriptor {
   /** The name of the service */
@@ -124,7 +124,7 @@ export interface ServiceDescriptor {
  * services, enums, and metadata.
  *
  * @public
- * @since 0.1.0
+ * @since 0.2.0
  */
 export interface FileDescriptor {
   /** The name of the proto file */
@@ -150,7 +150,7 @@ export interface FileDescriptor {
  * Contains an array of file descriptors representing multiple .proto files.
  *
  * @public
- * @since 0.1.0
+ * @since 0.2.0
  */
 export interface FileDescriptorSetData {
   /** Array of file descriptors */
@@ -162,7 +162,7 @@ export interface FileDescriptorSetData {
  * Wraps FileDescriptorSetData in the expected JSON structure.
  *
  * @public
- * @since 0.1.0
+ * @since 0.2.0
  */
 export interface FileDescriptorSetInput {
   /** The file descriptor set data */
@@ -434,7 +434,7 @@ const extractProtoFiles = (root: protobuf.Root, options: FileDescriptorSetParseO
  * ```
  *
  * @public
- * @since 0.1.0
+ * @since 0.2.0
  */
 export const parseFileDescriptorSet = async (
   input: string | FileDescriptorSetInput,

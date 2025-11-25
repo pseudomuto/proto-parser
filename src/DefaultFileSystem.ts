@@ -7,7 +7,7 @@ import { FileSystem } from './types';
  * Default implementation of FileSystem interface using Node.js fs module.
  *
  * @public
- * @since 0.1.0
+ * @since 0.2.0
  */
 export class DefaultFileSystem implements FileSystem {
   /**

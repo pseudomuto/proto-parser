@@ -249,6 +249,41 @@ class CustomProcessor extends DefaultContentProcessor {
 }
 ```
 
+#### `DefaultFileSystem` Class
+
+The default implementation of the `FileSystem` interface, providing standard file system operations. This class is used internally by the library and can be extended or replaced with custom implementations for specialized file access patterns (e.g., virtual file systems, in-memory files, or remote file access).
+
+**Constructor:**
+```typescript
+new DefaultFileSystem()
+```
+
+**Usage:**
+```typescript
+import { DefaultFileSystem } from '@pseudomutojs/proto-parser';
+
+// Use the default file system implementation
+const fs = new DefaultFileSystem();
+
+// Check if a file exists
+const exists = await fs.exists('/path/to/file.proto');
+
+// Read file content
+const content = await fs.readFile('/path/to/file.proto');
+
+// Check if a path is a file
+const isFile = await fs.isFile('/path/to/file.proto');
+
+// Get absolute path
+const absPath = await fs.resolve('./relative/path.proto');
+```
+
+**Methods:**
+- `exists(filePath: string): Promise<boolean>` - Check if a file exists
+- `readFile(filePath: string): Promise<string>` - Read file content as UTF-8 string
+- `isFile(filePath: string): Promise<boolean>` - Check if path points to a file (not directory)
+- `resolve(...paths: string[]): Promise<string>` - Resolve to absolute path
+
 #### `createDefaultParseOptions(baseDir, options?)`
 
 Helper function to create fully resolved ParseOptions with defaults populated.
@@ -927,46 +962,10 @@ proto.enums?.forEach(enumDef => {
 });
 ```
 
-## Utility Functions
-
-The library also exports utility functions for working with proto files:
-
-### File System Utilities
-
-```typescript
-import { fileExists, isFilePath, readFile } from '@pseudomutojs/proto-parser';
-
-// Check if a file exists
-const exists = await fileExists('./my-file.proto');
-
-// Read file content
-const content = await readFile('./my-file.proto');
-
-// Check if input is a file path vs content
-const isPath = await isFilePath('./my-file.proto'); // true
-const isContent = await isFilePath('syntax = "proto3";'); // false
-```
-
-### Path and Namespace Utilities
-
-```typescript
-import { extractNamespace, getProtoDirectory, getProtoPath, joinNamespace } from '@pseudomutojs/proto-parser';
-
-// Get resolved file path
-const fullPath = await getProtoPath('./relative/path.proto');
-
-// Extract namespace components
-const { namespace, name } = extractNamespace('google.protobuf.Timestamp');
-// namespace = 'google.protobuf', name = 'Timestamp'
-
-// Join namespace parts
-const fullNamespace = joinNamespace('google', 'protobuf'); // 'google.protobuf'
-```
-
 ## Error Handling
 
 ```typescript
-import { parseProto } from '@pseudomutojs/proto-parser';
+import { parseProto, BufApiError, BufConfigurationError } from '@pseudomutojs/proto-parser';
 
 try {
   const proto = await parseProto('./non-existent.proto');
@@ -977,6 +976,42 @@ try {
     console.error('Import resolution failed:', error.message);
   } else {
     console.error('Failed to parse proto:', error.message);
+  }
+}
+```
+
+### Error Classes
+
+#### `BufApiError`
+
+Thrown when there's an error communicating with the Buf Schema Registry API.
+
+```typescript
+import { BufApiError } from '@pseudomutojs/proto-parser';
+
+try {
+  // Use BufImportResolver with invalid credentials
+} catch (error) {
+  if (error instanceof BufApiError) {
+    console.error('Buf API error:', error.message);
+    // Possible causes: network issues, invalid token, module not found
+  }
+}
+```
+
+#### `BufConfigurationError`
+
+Thrown when the BufImportResolver is configured incorrectly.
+
+```typescript
+import { BufConfigurationError } from '@pseudomutojs/proto-parser';
+
+try {
+  // Create BufImportResolver with invalid module coordinates
+} catch (error) {
+  if (error instanceof BufConfigurationError) {
+    console.error('Buf configuration error:', error.message);
+    // Possible causes: invalid module format, missing required fields
   }
 }
 ```

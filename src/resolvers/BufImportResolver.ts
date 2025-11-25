@@ -48,7 +48,7 @@ interface BufApiResponse {
  * ```
  *
  * @public
- * @since 0.1.0
+ * @since 0.2.0
  */
 export class BufApiError extends Error {
   constructor(
@@ -85,7 +85,7 @@ export class BufApiError extends Error {
  * ```
  *
  * @public
- * @since 0.1.0
+ * @since 0.2.0
  */
 export class BufConfigurationError extends Error {
   constructor(message: string) {
@@ -158,7 +158,7 @@ export interface BufImportResolverOptions extends ParseOptions {
  * ```
  *
  * @public
- * @since 0.1.0
+ * @since 0.2.0
  */
 export class BufImportResolver extends DefaultImportResolver {
   #moduleMap: Map<string, string>;
