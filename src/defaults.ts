@@ -1,6 +1,6 @@
 import { DefaultContentProcessor } from './DefaultContentProcessor';
 import { DefaultFileSystem } from './DefaultFileSystem';
-import { DefaultImportResolver } from './DefaultImportResolver';
+import { DefaultImportResolver } from './resolvers/DefaultImportResolver';
 import { ParseOptions, ResolvedParseOptions } from './types';
 
 /**
