@@ -310,5 +310,115 @@ describe('descriptorParser', () => {
 
       expect(protos[0].idl).not.toContain('import');
     });
+
+    it('should handle FileDescriptorSet with no imports', async () => {
+      const descriptorSet = {
+        fileDescriptorSet: {
+          file: [
+            {
+              name: 'test.proto',
+              package: 'test',
+              syntax: 'proto3',
+              // No dependency field or empty dependency array
+              messageType: [
+                {
+                  name: 'TestMessage',
+                  field: [
+                    {
+                      name: 'id',
+                      number: 1,
+                      label: 1,
+                      type: 5,
+                    },
+                  ],
+                },
+              ],
+            },
+          ],
+        },
+      };
+
+      const protos = await parseFileDescriptorSet(descriptorSet);
+      // When there are no dependencies, imports should be undefined or empty array
+      expect(protos[0].imports).toEqual([]); // Changed to expect empty array
+    });
+
+    it('should handle direct FileDescriptorSet format (without wrapper)', async () => {
+      // Use object input instead of file path since we removed the test files
+      const directDescriptorSet = {
+        fileDescriptorSet: {
+          file: [
+            {
+              name: 'test.proto',
+              package: 'test',
+              syntax: 'proto3',
+              messageType: [
+                {
+                  name: 'TestMessage',
+                  field: [
+                    {
+                      name: 'id',
+                      number: 1,
+                      label: 1,
+                      type: 5,
+                    },
+                  ],
+                },
+              ],
+            },
+          ],
+        },
+      };
+
+      const protos = await parseFileDescriptorSet(directDescriptorSet);
+      expect(protos).toHaveLength(1);
+      expect(protos[0].file).toBe('test.proto');
+    });
+
+    it('should throw error for empty file descriptors', async () => {
+      const descriptorSet = {
+        fileDescriptorSet: {
+          file: [],
+        },
+      };
+
+      await expect(parseFileDescriptorSet(descriptorSet)).rejects.toThrow(
+        'FileDescriptorSet contains no file descriptors',
+      );
+    });
+
+    it('should handle proto2 syntax when defaultSyntax is proto2', async () => {
+      const descriptorSet = {
+        fileDescriptorSet: {
+          file: [
+            {
+              name: 'test.proto',
+              package: 'test',
+              // No syntax specified
+              messageType: [
+                {
+                  name: 'TestMessage',
+                  field: [
+                    {
+                      name: 'id',
+                      number: 1,
+                      label: 2, // LABEL_REQUIRED
+                      type: 5, // TYPE_INT32
+                    },
+                  ],
+                },
+              ],
+            },
+          ],
+        },
+      };
+
+      const options: FileDescriptorSetParseOptions = {
+        defaultSyntax: 'proto2',
+      };
+
+      const protos = await parseFileDescriptorSet(descriptorSet, options);
+      expect(protos[0].idl).toContain('syntax = "proto2"');
+    });
   });
 });

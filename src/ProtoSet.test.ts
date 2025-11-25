@@ -330,24 +330,16 @@ describe('ProtoSet.from static methods', () => {
     });
 
     it('should continue parsing valid inputs when some fail', async () => {
-      const consoleSpy = jest.spyOn(console, 'warn').mockImplementation();
-
       const protoSet = await ProtoSet.from('./non-existent-file.proto', protoContent1, 'invalid proto content');
 
       expect(protoSet.size()).toBe(1);
-      expect(consoleSpy).toHaveBeenCalled();
-
-      consoleSpy.mockRestore();
+      // The valid content should be parsed successfully even when other inputs fail
     });
 
     it('should throw error when all inputs fail to parse', async () => {
-      const consoleSpy = jest.spyOn(console, 'warn').mockImplementation();
-
       await expect(ProtoSet.from('./non-existent-file.proto', 'invalid proto content')).rejects.toThrow(
         'Failed to parse any of the provided inputs',
       );
-
-      consoleSpy.mockRestore();
     });
   });
 });

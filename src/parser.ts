@@ -66,6 +66,7 @@ const parseProtoContent = async (
   root.resolvePath = resolvedOptions.importResolver.createProtobufResolver();
 
   // Load all imports first using the root's resolvePath
+  const failedImports: string[] = [];
   if (tempParsed.imports) {
     for (const importPath of tempParsed.imports) {
       try {
@@ -74,10 +75,13 @@ const parseProtoContent = async (
           await root.load(resolvedPath, { keepCase: resolvedOptions.keepCase });
         }
       } catch (err) {
-        console.warn(`Failed to load import: ${importPath}`, err);
+        failedImports.push(`${importPath}: ${err instanceof Error ? err.message : String(err)}`);
       }
     }
   }
+
+  // If critical imports failed, we should still try to continue
+  // but note that some functionality might be missing
 
   // Parse the main content into the root that has all imports loaded
   const parsed = protobuf.parse(content, root, {
@@ -252,9 +256,9 @@ export const parseProtoDirectory = async (dirPath: string, options: DirectoryPar
 
   if (errors.length > 0 && protos.length === 0) {
     throw new Error(`Failed to parse any proto files:\n${errors.join('\n')}`);
-  } else if (errors.length > 0) {
-    console.warn(`Some proto files failed to parse:\n${errors.join('\n')}`);
   }
+  // Note: If there are partial failures, they are tracked in the errors array
+  // but we continue with the successfully parsed files
 
   return new ProtoSet(protos);
 };

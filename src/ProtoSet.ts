@@ -83,8 +83,8 @@ export class ProtoSet {
     const parsePromises = inputs.map(async input => {
       try {
         return await parseProto(input, options);
-      } catch (error) {
-        console.warn(`Failed to parse input: ${error instanceof Error ? error.message : String(error)}`);
+      } catch {
+        // Return null for failed parses - error will be handled below if all inputs fail
         return null;
       }
     });
