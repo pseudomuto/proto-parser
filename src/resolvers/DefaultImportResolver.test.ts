@@ -1,9 +1,9 @@
 import * as fs from 'fs';
 import * as path from 'path';
 
-import { DefaultFileSystem } from './DefaultFileSystem';
+import { DefaultFileSystem } from '../DefaultFileSystem';
+import { ParseOptions } from '../types';
 import { DefaultImportResolver } from './DefaultImportResolver';
-import { ParseOptions } from './types';
 
 // Mock filesystem for unit tests
 jest.mock('fs');

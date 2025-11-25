@@ -1,8 +1,7 @@
 import * as os from 'os';
 import * as path from 'path';
 
-import { DefaultFileSystem } from './DefaultFileSystem';
-import { DefaultImportResolver } from './DefaultImportResolver';
+import { DefaultFileSystem } from '../DefaultFileSystem';
 import type {
   EnumDescriptor,
   FieldDescriptor,
@@ -11,9 +10,10 @@ import type {
   MessageDescriptor,
   MethodDescriptor,
   ServiceDescriptor,
-} from './descriptorParser';
-import { FileSystem, ParseOptions } from './types';
-import { validateImportPath as validateImportPathUtils } from './utils';
+} from '../descriptorParser';
+import { FileSystem, ParseOptions } from '../types';
+import { validateImportPath as validateImportPathUtils } from '../utils';
+import { DefaultImportResolver } from './DefaultImportResolver';
 
 const BUF_API_BASE_URL = 'https://buf.build';
 

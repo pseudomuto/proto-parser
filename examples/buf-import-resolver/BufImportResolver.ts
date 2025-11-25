@@ -2,7 +2,6 @@ import * as fs from 'fs';
 import * as os from 'os';
 import * as path from 'path';
 
-import { DefaultImportResolver } from '../../src/DefaultImportResolver';
 import type {
   EnumDescriptor,
   FieldDescriptor,
@@ -12,6 +11,7 @@ import type {
   MethodDescriptor,
   ServiceDescriptor,
 } from '../../src/descriptorParser';
+import { DefaultImportResolver } from '../../src/resolvers/DefaultImportResolver';
 import { ParseOptions } from '../../src/types';
 
 /**

@@ -1,7 +1,7 @@
 import * as path from 'path';
 
+import { FileSystem } from '../types';
 import { BufApiError, BufConfigurationError, BufImportResolver, BufImportResolverOptions } from './BufImportResolver';
-import { FileSystem } from './types';
 
 // Mock fetch globally
 global.fetch = jest.fn();

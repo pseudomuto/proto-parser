@@ -1,7 +1,7 @@
 import * as fs from 'fs';
 import * as path from 'path';
 
-import { FileSystem, ImportResolver, ParseOptions } from './types';
+import { FileSystem, ImportResolver, ParseOptions } from '../types';
 
 /**
  * Default implementation of ImportResolver interface.
