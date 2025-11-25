@@ -167,11 +167,12 @@ export class BufImportResolver extends DefaultImportResolver {
   #fileSystem: FileSystem;
 
   constructor(baseDir: string, moduleMapping: Record<string, string>, options: BufImportResolverOptions = {}) {
-    super(baseDir, options);
+    const fileSystem = options.fileSystem || new DefaultFileSystem();
+    super(baseDir, fileSystem, options);
     this.#moduleMap = new Map(Object.entries(moduleMapping));
     this.#apiToken = options.bufToken;
     this.#cacheDir = options.cacheDir || path.join(os.tmpdir(), '.buf-cache');
-    this.#fileSystem = options.fileSystem || new DefaultFileSystem();
+    this.#fileSystem = fileSystem;
   }
 
   /**

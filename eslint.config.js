@@ -10,7 +10,7 @@ module.exports = defineConfig([
   },
   {
     files: ['**/*.ts'],
-    ignores: ['**/*.test.ts', 'jest.config.ts', 'examples/**/*.ts'],
+    ignores: ['**/*.test.ts', 'jest.config.ts', 'examples/**/*.ts', '**/__mocks__/**/*.ts'],
     languageOptions: {
       parser: tsParser,
       parserOptions: {
@@ -47,6 +47,28 @@ module.exports = defineConfig([
       'no-unused-vars': 'off',
       '@typescript-eslint/no-unused-vars': 'warn',
       '@typescript-eslint/no-non-null-assertion': 'off',
+    },
+  },
+  {
+    files: ['**/__mocks__/**/*.ts'],
+    plugins: {
+      jest: pluginJest,
+      '@typescript-eslint': tsPlugin,
+    },
+    languageOptions: {
+      parser: tsParser,
+      parserOptions: {
+        ecmaVersion: 2020,
+        sourceType: 'module',
+        // No project specified for mocks - uses standalone parsing
+      },
+      globals: pluginJest.environments.globals.globals,
+    },
+    rules: {
+      'no-unused-vars': 'off',
+      '@typescript-eslint/no-unused-vars': 'warn',
+      '@typescript-eslint/no-explicit-any': 'warn',
+      '@typescript-eslint/no-unsafe-function-type': 'off',
     },
   },
   {

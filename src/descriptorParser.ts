@@ -1,7 +1,7 @@
-import * as fs from 'fs';
 import * as protobuf from 'protobufjs';
 
 import { DefaultContentProcessor } from './DefaultContentProcessor';
+import { DefaultFileSystem } from './DefaultFileSystem';
 import { Enum, FileDescriptorSetParseOptions, Message, Proto, Service } from './types';
 
 // TypeScript interfaces for FileDescriptor objects
@@ -441,11 +441,12 @@ export const parseFileDescriptorSet = async (
   options: FileDescriptorSetParseOptions = {},
 ): Promise<Proto[]> => {
   let descriptorSetData: FileDescriptorSetData;
+  const fileSystem = options.fileSystem || new DefaultFileSystem();
 
   if (typeof input === 'string') {
     // Load from file path
     try {
-      const content = await fs.promises.readFile(input, 'utf-8');
+      const content = await fileSystem.readFile(input, 'utf-8');
       const parsed = JSON.parse(content);
 
       if (parsed.fileDescriptorSet) {

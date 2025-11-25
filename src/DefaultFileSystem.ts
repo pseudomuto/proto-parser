@@ -1,4 +1,5 @@
 import * as fs from 'fs';
+import * as path from 'path';
 
 import { FileSystem } from './types';
 
@@ -37,11 +38,81 @@ export class DefaultFileSystem implements FileSystem {
   }
 
   /**
-   * Read a file.
-   * @param path File path
-   * @returns File content as Buffer
+   * Check if a file or directory exists.
    */
-  async readFile(path: string): Promise<Buffer> {
-    return fs.promises.readFile(path);
+  async exists(filePath: string): Promise<boolean> {
+    try {
+      await fs.promises.access(filePath, fs.constants.F_OK);
+      return true;
+    } catch (err) {
+      const error = err as NodeJS.ErrnoException;
+      if (error.code === 'ENOENT') {
+        return false;
+      }
+      throw err;
+    }
+  }
+
+  /**
+   * Get file or directory stats.
+   */
+  async stat(filePath: string): Promise<fs.Stats> {
+    return fs.promises.stat(filePath);
+  }
+
+  /**
+   * Read directory contents.
+   */
+  async readDir(dirPath: string, options?: { withFileTypes?: boolean }): Promise<fs.Dirent[] | string[]> {
+    if (options?.withFileTypes) {
+      return fs.promises.readdir(dirPath, { withFileTypes: true });
+    }
+    return fs.promises.readdir(dirPath);
+  }
+
+  /**
+   * Read a file.
+   */
+  async readFile(filePath: string): Promise<Buffer>;
+  async readFile(filePath: string, encoding: BufferEncoding): Promise<string>;
+  async readFile(filePath: string, encoding?: BufferEncoding): Promise<Buffer | string> {
+    if (encoding) {
+      return fs.promises.readFile(filePath, encoding);
+    }
+    return fs.promises.readFile(filePath);
+  }
+
+  /**
+   * Read content from either a file path or return the input if it's already content.
+   */
+  async readFileOrLiteral(input: string): Promise<{ content: string; filePath: string }> {
+    if (await this.isFilePath(input)) {
+      const resolvedPath = path.resolve(input);
+      const content = await this.readFile(resolvedPath, 'utf-8');
+      return { content, filePath: resolvedPath };
+    }
+
+    return { content: input, filePath: '' };
+  }
+
+  /**
+   * Get the full file path if input is a valid file path, empty string otherwise.
+   */
+  async filePathIfExists(input: string): Promise<string> {
+    if (await this.isFilePath(input)) {
+      return path.resolve(input);
+    }
+    return '';
+  }
+
+  /**
+   * Determines if the input string is a file path rather than proto content.
+   */
+  private async isFilePath(input: string): Promise<boolean> {
+    if (input.includes('\n') || input.includes('syntax =')) {
+      return false;
+    }
+
+    return input.endsWith('.proto') || (await this.exists(input)) || (await this.exists(path.resolve(input)));
   }
 }
