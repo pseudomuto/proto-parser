@@ -173,10 +173,7 @@ describe('parseProto', () => {
 
   describe('options', () => {
     test('should preserve snake_case when keepCase is true', async () => {
-      const result = await parseProto(userPath, {
-        keepCase: true,
-        includePaths,
-      });
+      const result = await parseProto(userPath, { keepCase: true, includePaths });
       const userMessage = result.messages!.find(m => m.name === 'User');
       const createdAtField = userMessage!.fields!.find(f => f.name === 'created_at');
       expect(createdAtField).toBeDefined();
@@ -184,10 +181,7 @@ describe('parseProto', () => {
     });
 
     test('should convert to camelCase when keepCase is false', async () => {
-      const result = await parseProto(userPath, {
-        keepCase: false,
-        includePaths,
-      });
+      const result = await parseProto(userPath, { keepCase: false, includePaths });
       const userMessage = result.messages!.find(m => m.name === 'User');
       const createdAtField = userMessage!.fields!.find(f => f.name === 'createdAt');
       expect(createdAtField).toBeDefined();

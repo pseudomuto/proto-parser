@@ -71,10 +71,7 @@ describe('BufResolver', () => {
     let resolver: BufResolver;
 
     beforeEach(() => {
-      resolver = new BufResolver([], {
-        fileSystem: mockFileSystem,
-        includeDependencies: true,
-      });
+      resolver = new BufResolver([], { fileSystem: mockFileSystem, includeDependencies: true });
     });
 
     it('should build URL with dependencies', () => {
@@ -91,10 +88,7 @@ describe('BufResolver', () => {
     });
 
     it('should build URL without dependencies when disabled', () => {
-      const resolverNoDeps = new BufResolver([], {
-        fileSystem: mockFileSystem,
-        includeDependencies: false,
-      });
+      const resolverNoDeps = new BufResolver([], { fileSystem: mockFileSystem, includeDependencies: false });
       const buildMethod = (resolverNoDeps as any).buildArchiveUrl.bind(resolverNoDeps);
 
       const coordinate = {
@@ -124,11 +118,7 @@ describe('BufResolver', () => {
       (global.fetch as jest.Mock).mockResolvedValue(mockResponse);
 
       const downloadMethod = (resolver as any).downloadArchive.bind(resolver);
-      const coordinate = {
-        instance: 'buf.build',
-        owner: 'bufbuild',
-        name: 'protovalidate',
-      };
+      const coordinate = { instance: 'buf.build', owner: 'bufbuild', name: 'protovalidate' };
 
       const result = await downloadMethod('https://example.com/test.tar.gz', coordinate);
       expect(result).toBeInstanceOf(Buffer);
@@ -136,10 +126,7 @@ describe('BufResolver', () => {
     });
 
     it('should include authorization header when token provided', async () => {
-      const resolverWithToken = new BufResolver([], {
-        bufToken: 'test-token',
-        fileSystem: mockFileSystem,
-      });
+      const resolverWithToken = new BufResolver([], { bufToken: 'test-token', fileSystem: mockFileSystem });
 
       const mockResponse = {
         ok: true,
@@ -149,11 +136,7 @@ describe('BufResolver', () => {
       (global.fetch as jest.Mock).mockResolvedValue(mockResponse);
 
       const downloadMethod = (resolverWithToken as any).downloadArchive.bind(resolverWithToken);
-      const coordinate = {
-        instance: 'buf.build',
-        owner: 'bufbuild',
-        name: 'protovalidate',
-      };
+      const coordinate = { instance: 'buf.build', owner: 'bufbuild', name: 'protovalidate' };
 
       await downloadMethod('https://example.com/test.tar.gz', coordinate);
 
@@ -175,11 +158,7 @@ describe('BufResolver', () => {
       (global.fetch as jest.Mock).mockResolvedValue(mockResponse);
 
       const downloadMethod = (resolver as any).downloadArchive.bind(resolver);
-      const coordinate = {
-        instance: 'buf.build',
-        owner: 'bufbuild',
-        name: 'protovalidate',
-      };
+      const coordinate = { instance: 'buf.build', owner: 'bufbuild', name: 'protovalidate' };
 
       await expect(downloadMethod('https://example.com/test.tar.gz', coordinate)).rejects.toThrow(BufResolverError);
     });
@@ -188,11 +167,7 @@ describe('BufResolver', () => {
       (global.fetch as jest.Mock).mockRejectedValue(new Error('Network error'));
 
       const downloadMethod = (resolver as any).downloadArchive.bind(resolver);
-      const coordinate = {
-        instance: 'buf.build',
-        owner: 'bufbuild',
-        name: 'protovalidate',
-      };
+      const coordinate = { instance: 'buf.build', owner: 'bufbuild', name: 'protovalidate' };
 
       await expect(downloadMethod('https://example.com/test.tar.gz', coordinate)).rejects.toThrow(BufResolverError);
     });
@@ -207,12 +182,8 @@ describe('BufResolver', () => {
 
       await resolver.cleanup();
 
-      expect(mockFileSystem.rmdir).toHaveBeenCalledWith('/temp/dir1', {
-        recursive: true,
-      });
-      expect(mockFileSystem.rmdir).toHaveBeenCalledWith('/temp/dir2', {
-        recursive: true,
-      });
+      expect(mockFileSystem.rmdir).toHaveBeenCalledWith('/temp/dir1', { recursive: true });
+      expect(mockFileSystem.rmdir).toHaveBeenCalledWith('/temp/dir2', { recursive: true });
     });
 
     it('should ignore cleanup errors and continue', async () => {
