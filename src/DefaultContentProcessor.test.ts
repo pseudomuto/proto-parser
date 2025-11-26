@@ -19,7 +19,10 @@ describe('DefaultContentProcessor', () => {
     it('should return "required" for required fields', () => {
       // Create field and manually set required (protobufjs specific)
       const field = new protobuf.Field('test', 1, 'string');
-      Object.defineProperty(field, 'required', { value: true, writable: false });
+      Object.defineProperty(field, 'required', {
+        value: true,
+        writable: false,
+      });
       expect(contentProcessor.parseFieldRule(field)).toBe('required');
     });
 

@@ -19,7 +19,6 @@ export { DefaultImportResolver } from './resolvers';
 // Export Buf-related utilities
 export { BufResolver, BufResolverError } from './buf';
 export type { BufResolverOptions } from './buf';
-export { createDefaultParseOptions } from './defaults';
 
 // Export all types
 export * from './types';

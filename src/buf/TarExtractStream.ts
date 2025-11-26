@@ -106,7 +106,11 @@ export class TarExtractStream extends stream.Writable {
   /**
    * Parses a tar header to extract file information.
    */
-  private parseTarHeader(header: Buffer): { name: string; size: number; type: string } {
+  private parseTarHeader(header: Buffer): {
+    name: string;
+    size: number;
+    type: string;
+  } {
     // File name is at offset 0, up to 100 bytes
     const nameBytes = header.subarray(0, 100);
     const nullIndex = nameBytes.indexOf(0);

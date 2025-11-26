@@ -1,3 +1,4 @@
+import fsPromises from 'fs/promises';
 import * as path from 'path';
 
 import { DefaultFileSystem } from './DefaultFileSystem';
@@ -214,7 +215,7 @@ message Test {
       } finally {
         // Cleanup
         if (await fs.exists(tempDir)) {
-          await require('fs').promises.rmdir(tempDir);
+          await fsPromises.rmdir(tempDir);
         }
       }
     });
@@ -230,7 +231,7 @@ message Test {
         // Cleanup
         const parentDir = path.join(process.cwd(), 'temp-test-dir');
         if (await fs.exists(parentDir)) {
-          await require('fs').promises.rm(parentDir, { recursive: true });
+          await fsPromises.rm(parentDir, { recursive: true });
         }
       }
     });
@@ -249,7 +250,7 @@ message Test {
       } finally {
         // Cleanup
         if (await fs.exists(tempFile)) {
-          await require('fs').promises.unlink(tempFile);
+          await fsPromises.unlink(tempFile);
         }
       }
     });
