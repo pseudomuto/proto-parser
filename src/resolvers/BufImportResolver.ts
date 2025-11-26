@@ -165,6 +165,8 @@ export class BufImportResolver extends DefaultImportResolver {
   #apiToken?: string;
   #cacheDir: string;
   #fileSystem: FileSystem;
+  #pendingRequests: Map<string, Promise<FileDescriptorSetData | null>> = new Map();
+  #fileDescriptorCache: Map<string, FileDescriptorSetData> = new Map();
 
   constructor(baseDir: string, moduleMapping: Record<string, string>, options: BufImportResolverOptions = {}) {
     const fileSystem = options.fileSystem || new DefaultFileSystem();
@@ -326,12 +328,58 @@ export class BufImportResolver extends DefaultImportResolver {
   }
 
   /**
-   * Fetches a FileDescriptorSet from the Buf API.
+   * Fetches a FileDescriptorSet from the Buf API with request deduplication.
+   * If a request for the same module+version is already in flight, returns the same promise.
+   * Caches successful responses in memory for the duration of the resolver instance.
    */
   private async fetchFileDescriptorSet(
     module: string,
     version?: string,
     symbol?: string, // Reserved for future use to fetch specific symbols only
+  ): Promise<FileDescriptorSetData | null> {
+    // Create a cache key for this module+version combination
+    const cacheKey = `${module}:${version || '__default__'}`;
+
+    // Check if we already have this in memory cache
+    if (this.#fileDescriptorCache.has(cacheKey)) {
+      return this.#fileDescriptorCache.get(cacheKey) || null;
+    }
+
+    // Check if a request for this module is already pending
+    if (this.#pendingRequests.has(cacheKey)) {
+      return this.#pendingRequests.get(cacheKey)!;
+    }
+
+    // Start a new request and track it as pending
+    const requestPromise = this.fetchFileDescriptorSetImpl(module, version, symbol).then(
+      result => {
+        // Cache successful results
+        if (result) {
+          this.#fileDescriptorCache.set(cacheKey, result);
+        }
+        // Remove from pending requests
+        this.#pendingRequests.delete(cacheKey);
+        return result;
+      },
+      error => {
+        // Remove from pending requests on error
+        this.#pendingRequests.delete(cacheKey);
+        throw error;
+      },
+    );
+
+    // Store the pending promise
+    this.#pendingRequests.set(cacheKey, requestPromise);
+    return requestPromise;
+  }
+
+  /**
+   * Internal implementation of fetchFileDescriptorSet that performs the actual API call.
+   */
+  private async fetchFileDescriptorSetImpl(
+    module: string,
+    version?: string,
+    symbol?: string,
   ): Promise<FileDescriptorSetData | null> {
     const url = `${BUF_API_BASE_URL}/buf.reflect.v1beta1.FileDescriptorSetService/GetFileDescriptorSet`;
 
@@ -372,6 +420,14 @@ export class BufImportResolver extends DefaultImportResolver {
       }
       throw new BufApiError(`Failed to fetch from Buf API: ${error}`, undefined, module);
     }
+  }
+
+  /**
+   * Clears the in-memory caches. Useful for long-running processes or between parsing sessions.
+   */
+  public clearMemoryCaches(): void {
+    this.#pendingRequests.clear();
+    this.#fileDescriptorCache.clear();
   }
 
   /**

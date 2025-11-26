@@ -704,6 +704,152 @@ describe('BufImportResolver', () => {
     });
   });
 
+  describe('request deduplication', () => {
+    beforeEach(() => {
+      resolver = new BufImportResolver(
+        baseDir,
+        {
+          'test/': 'buf.build/test/module:v1.0.0',
+        },
+        {
+          cacheDir: testCacheDir,
+          fileSystem: mockFs,
+        },
+      );
+    });
+
+    it('should deduplicate concurrent API requests for the same module', async () => {
+      // Mock API responses - both return the same FileDescriptorSet with both files
+      mockFetch.mockResolvedValue({
+        ok: true,
+        json: async () => ({
+          fileDescriptorSet: {
+            file: [
+              {
+                name: 'test/file1.proto',
+                syntax: 'proto3',
+                package: 'test',
+                messageType: [{ name: 'File1Message' }],
+              },
+              {
+                name: 'test/file2.proto',
+                syntax: 'proto3',
+                package: 'test',
+                messageType: [{ name: 'File2Message' }],
+              },
+            ],
+          },
+        }),
+      } as Response);
+
+      // Start two concurrent requests for files from the same module
+      const [result1, result2] = await Promise.all([
+        resolver.resolveImport('test/file1.proto'),
+        resolver.resolveImport('test/file2.proto'),
+      ]);
+
+      // Both should succeed
+      expect(result1).toContain('file1.proto');
+      expect(result2).toContain('file2.proto');
+
+      // Only one API call should have been made (deduplication working)
+      expect(mockFetch).toHaveBeenCalledTimes(1);
+
+      // Verify the API was called with the correct module
+      expect(mockFetch).toHaveBeenCalledWith(
+        expect.stringContaining('GetFileDescriptorSet'),
+        expect.objectContaining({
+          body: expect.stringContaining('buf.build/test/module'),
+        }),
+      );
+    });
+
+    it('should use memory cache for subsequent requests to the same module', async () => {
+      mockFetch.mockResolvedValueOnce({
+        ok: true,
+        json: async () => ({
+          fileDescriptorSet: {
+            file: [
+              {
+                name: 'test/cached.proto',
+                syntax: 'proto3',
+                package: 'test',
+                messageType: [{ name: 'CachedMessage' }],
+              },
+              {
+                name: 'test/other.proto',
+                syntax: 'proto3',
+                package: 'test',
+                messageType: [{ name: 'OtherMessage' }],
+              },
+            ],
+          },
+        }),
+      } as Response);
+
+      // First request - should hit API
+      const result1 = await resolver.resolveImport('test/cached.proto');
+      expect(mockFetch).toHaveBeenCalledTimes(1);
+      expect(result1).toContain('cached.proto');
+
+      // Second request for same file - returns cached file path from disk
+      const result2 = await resolver.resolveImport('test/cached.proto');
+      expect(mockFetch).toHaveBeenCalledTimes(1); // Still only 1 call
+      expect(result2).toBe(result1); // Same cached file path
+
+      // Third request for a different file from same module - uses memory-cached FileDescriptorSet
+      const result3 = await resolver.resolveImport('test/other.proto');
+      // Should still be 1 call because the FileDescriptorSet is cached
+      expect(mockFetch).toHaveBeenCalledTimes(1);
+      expect(result3).toContain('other.proto');
+    });
+
+    it('should clear memory caches when requested', async () => {
+      const fileDescriptorSet = {
+        file: [
+          {
+            name: 'test/memory1.proto',
+            syntax: 'proto3',
+            package: 'test',
+            messageType: [{ name: 'Memory1' }],
+          },
+          {
+            name: 'test/memory2.proto',
+            syntax: 'proto3',
+            package: 'test',
+            messageType: [{ name: 'Memory2' }],
+          },
+          {
+            name: 'test/memory3.proto',
+            syntax: 'proto3',
+            package: 'test',
+            messageType: [{ name: 'Memory3' }],
+          },
+        ],
+      };
+
+      mockFetch.mockResolvedValue({
+        ok: true,
+        json: async () => ({ fileDescriptorSet }),
+      } as Response);
+
+      // First request for memory1.proto - hits API
+      await resolver.resolveImport('test/memory1.proto');
+      expect(mockFetch).toHaveBeenCalledTimes(1);
+
+      // Second request for memory2.proto - should use memory cache (same module)
+      await resolver.resolveImport('test/memory2.proto');
+      expect(mockFetch).toHaveBeenCalledTimes(1); // Still 1
+
+      // Clear memory caches
+      resolver.clearMemoryCaches();
+
+      // Third request for a new file from same module - should hit API again
+      await resolver.resolveImport('test/memory3.proto');
+      expect(mockFetch).toHaveBeenCalledTimes(2); // Now 2 calls
+    });
+  });
+
   describe('edge cases', () => {
     beforeEach(() => {
       resolver = new BufImportResolver(
