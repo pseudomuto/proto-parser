@@ -1,8 +1,7 @@
 /**
  * @fileoverview Functional integration tests for main module exports
  */
-import { createDefaultParseOptions } from './defaults';
-import { ProtoSet, parseProto } from './index';
+import { ProtoSet, createDefaultParseOptions, parseProto } from './index';
 
 describe('index - functional integration tests', () => {
   describe('parseProto', () => {
@@ -10,12 +9,12 @@ describe('index - functional integration tests', () => {
       const protoContent = `
         syntax = "proto3";
         package test;
-
+        
         message User {
           string name = 1;
           int32 age = 2;
         }
-
+        
         service UserService {
           rpc GetUser(User) returns (User);
         }
@@ -48,9 +47,7 @@ describe('index - functional integration tests', () => {
       `;
 
       const resultKeepCase = await parseProto(protoContent, { keepCase: true });
-      const resultCamelCase = await parseProto(protoContent, {
-        keepCase: false,
-      });
+      const resultCamelCase = await parseProto(protoContent, { keepCase: false });
 
       expect(resultKeepCase.messages![0].fields![0].name).toBe('user_name');
       expect(resultCamelCase.messages![0].fields![0].name).toBe('userName');

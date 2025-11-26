@@ -48,12 +48,7 @@ const buildProtoResult = (
 const parseProtoContent = async (
   input: string,
   resolvedOptions: ResolvedParseOptions,
-): Promise<{
-  root: protobuf.Root;
-  parsed: protobuf.IParserResult;
-  content: string;
-  protoPath: string;
-}> => {
+): Promise<{ root: protobuf.Root; parsed: protobuf.IParserResult; content: string; protoPath: string }> => {
   const { content, filePath: protoPath } = await resolvedOptions.fileSystem.readFileOrLiteral(input);
 
   // First parse to get imports without loading to pre-validate
@@ -132,10 +127,7 @@ export const parseProto = async (input: string, options: ParseOptions = {}): Pro
     const protoPath = await fileSystem.filePathIfExists(input);
     const protoDir = getProtoDirectory(protoPath);
     const baseDir = protoPath ? protoDir : process.cwd();
-    const resolvedOptions = createDefaultParseOptions(baseDir, {
-      ...options,
-      fileSystem,
-    });
+    const resolvedOptions = createDefaultParseOptions(baseDir, { ...options, fileSystem });
 
     const { root, parsed, content, protoPath: finalProtoPath } = await parseProtoContent(input, resolvedOptions);
     return buildProtoResult(root, finalProtoPath, content, parsed, resolvedOptions.contentProcessor);
@@ -156,9 +148,7 @@ const findProtoFiles = async (
 
   const scanDirectory = async (currentDir: string): Promise<void> => {
     try {
-      const entries = (await fileSystem.readDir(currentDir, {
-        withFileTypes: true,
-      })) as fs.Dirent[];
+      const entries = (await fileSystem.readDir(currentDir, { withFileTypes: true })) as fs.Dirent[];
 
       for (const entry of entries) {
         const fullPath = path.join(currentDir, entry.name);

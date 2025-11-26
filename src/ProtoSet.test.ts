@@ -249,9 +249,7 @@ describe('parseProtoDirectory', () => {
   });
 
   it('should handle non-recursive parsing', async () => {
-    const protoSet = await parseProtoDirectory('./fixtures/examples', {
-      recursive: false,
-    });
+    const protoSet = await parseProtoDirectory('./fixtures/examples', { recursive: false });
 
     // Should only find files directly in fixtures/examples, not in subdirectories
     const fileNames = protoSet.getProtos().map(p => p.file);
@@ -321,9 +319,7 @@ describe('ProtoSet.from static methods', () => {
     });
 
     it('should accept ParseOptions as last argument', async () => {
-      const protoSet = await ProtoSet.from(protoContent1, protoContent2, {
-        keepCase: false,
-      });
+      const protoSet = await ProtoSet.from(protoContent1, protoContent2, { keepCase: false });
 
       expect(protoSet.size()).toBe(2);
     });
@@ -503,9 +499,7 @@ describe('ProtoSet - generateSupersetIdl', () => {
     };
 
     const conflictSet = new ProtoSet([conflictProto1, conflictProto2]);
-    const idl = conflictSet.generateSupersetIdl({
-      namespaceConflictResolution: 'prefix',
-    });
+    const idl = conflictSet.generateSupersetIdl({ namespaceConflictResolution: 'prefix' });
 
     expect(idl).toContain('message User {');
     expect(idl).toContain('message v2_User {');
@@ -570,24 +564,9 @@ describe('ProtoSet - generateSupersetIdl', () => {
           name: 'TestRules',
           namespace: '',
           fields: [
-            {
-              name: 'required_field',
-              type: 'string',
-              number: 1,
-              rule: 'required',
-            },
-            {
-              name: 'optional_field',
-              type: 'string',
-              number: 2,
-              rule: 'optional',
-            },
-            {
-              name: 'repeated_field',
-              type: 'string',
-              number: 3,
-              rule: 'repeated',
-            },
+            { name: 'required_field', type: 'string', number: 1, rule: 'required' },
+            { name: 'optional_field', type: 'string', number: 2, rule: 'optional' },
+            { name: 'repeated_field', type: 'string', number: 3, rule: 'repeated' },
             { name: 'no_rule_field', type: 'string', number: 4 },
           ],
         },
@@ -618,12 +597,7 @@ describe('ProtoSet - generateSupersetIdl', () => {
             { name: 'oneof_field2', type: 'string', number: 3, oneofIndex: 0 },
             { name: 'another_field', type: 'bool', number: 4 },
           ],
-          oneofs: [
-            {
-              name: 'test_oneof',
-              fieldNames: ['oneof_field1', 'oneof_field2'],
-            },
-          ],
+          oneofs: [{ name: 'test_oneof', fieldNames: ['oneof_field1', 'oneof_field2'] }],
         },
       ],
     };
@@ -718,9 +692,7 @@ describe('ProtoSet - generateSupersetIdl', () => {
     };
 
     const conflictSet = new ProtoSet([proto1, proto2, proto3]);
-    const idl = conflictSet.generateSupersetIdl({
-      namespaceConflictResolution: 'prefix',
-    });
+    const idl = conflictSet.generateSupersetIdl({ namespaceConflictResolution: 'prefix' });
 
     expect(idl).toContain('message User {');
     expect(idl).toContain('message User_2 {');
@@ -740,18 +712,14 @@ describe('ProtoSet - generateSupersetIdl', () => {
     const protoSet = new ProtoSet([proto]);
 
     // With comments
-    const idlWithComments = protoSet.generateSupersetIdl({
-      includeComments: true,
-    });
+    const idlWithComments = protoSet.generateSupersetIdl({ includeComments: true });
     expect(idlWithComments).toContain('// Enum definitions');
     expect(idlWithComments).toContain('// Message definitions');
     expect(idlWithComments).toContain('// Service definitions');
     expect(idlWithComments).toContain('// From: test.proto');
 
     // Without comments
-    const idlWithoutComments = protoSet.generateSupersetIdl({
-      includeComments: false,
-    });
+    const idlWithoutComments = protoSet.generateSupersetIdl({ includeComments: false });
     expect(idlWithoutComments).not.toContain('// Enum definitions');
     expect(idlWithoutComments).not.toContain('// Message definitions');
     expect(idlWithoutComments).not.toContain('// Service definitions');
