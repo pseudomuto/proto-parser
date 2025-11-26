@@ -1,11 +1,7 @@
-import * as fs from 'fs';
 import * as path from 'path';
 
-import { DefaultFileSystem } from './DefaultFileSystem';
+import { MockFileSystem } from './__mocks__/MockFileSystem';
 import { extractNamespace, getProtoDirectory, joinNamespace, resolveImport, validateImportPath } from './utils';
-
-// Mock filesystem for unit tests
-jest.mock('fs');
 
 describe('utils', () => {
   const fixturesDir = path.join(process.cwd(), 'fixtures');
@@ -30,13 +26,11 @@ describe('utils', () => {
   });
 
   describe('resolveImport', () => {
-    let fileSystem: DefaultFileSystem;
-    const mockedFs = fs as jest.Mocked<typeof fs>;
+    let mockFileSystem: MockFileSystem;
 
     beforeEach(() => {
-      fileSystem = new DefaultFileSystem();
-      // Reset all mocks
-      jest.resetAllMocks();
+      mockFileSystem = new MockFileSystem();
+      mockFileSystem.reset();
     });
 
     test('should resolve imports in base directory', async () => {
@@ -45,11 +39,14 @@ describe('utils', () => {
       const importPath = 'user_service.proto';
       const expectedPath = path.join(baseDir, importPath);
 
-      mockedFs.promises.access.mockResolvedValue(undefined);
+      // Configure mock to return true for the expected path
+      mockFileSystem.exists.mockImplementation(async (filePath: string) => {
+        return filePath === expectedPath;
+      });
 
-      const result = await resolveImport(importPath, baseDir, [], fileSystem);
+      const result = await resolveImport(importPath, baseDir, [], mockFileSystem);
       expect(result).toBe(expectedPath);
-      expect(mockedFs.promises.access).toHaveBeenCalledWith(expectedPath, fs.constants.F_OK);
+      expect(mockFileSystem.exists).toHaveBeenCalledWith(expectedPath);
     });
 
     test('should resolve imports in include paths', async () => {
@@ -58,17 +55,12 @@ describe('utils', () => {
       const importPath = 'user_service.proto';
       const expectedPath = path.join(includePaths[0], importPath);
 
-      // Create proper ENOENT error
-      const enoentError = new Error('ENOENT: no such file or directory') as NodeJS.ErrnoException;
-      enoentError.code = 'ENOENT';
+      // Configure mock to return false for base dir paths, but true for include path
+      mockFileSystem.exists.mockImplementation(async (filePath: string) => {
+        return filePath === expectedPath;
+      });
 
-      // Mock file doesn't exist in base dir, include paths, or proto subdirs
-      // Search order: baseDir, includePaths, baseDir/proto, baseDir/protos, process.cwd()
-      mockedFs.promises.access
-        .mockRejectedValueOnce(enoentError) // baseDir
-        .mockResolvedValueOnce(undefined); // includePaths[0] - found here!
-
-      const result = await resolveImport(importPath, baseDir, includePaths, fileSystem);
+      const result = await resolveImport(importPath, baseDir, includePaths, mockFileSystem);
       expect(result).toBe(expectedPath);
     });
 
@@ -76,14 +68,10 @@ describe('utils', () => {
       const baseDir = '/tmp';
       const importPath = 'non-existent.proto';
 
-      // Create proper ENOENT error
-      const enoentError = new Error('ENOENT: no such file or directory') as NodeJS.ErrnoException;
-      enoentError.code = 'ENOENT';
+      // Configure mock to return false for all paths (file doesn't exist anywhere)
+      mockFileSystem.exists.mockResolvedValue(false);
 
-      // Mock file doesn't exist anywhere
-      mockedFs.promises.access.mockRejectedValue(enoentError);
-
-      const result = await resolveImport(importPath, baseDir, [], fileSystem);
+      const result = await resolveImport(importPath, baseDir, [], mockFileSystem);
       expect(result).toBe(null);
     });
   });

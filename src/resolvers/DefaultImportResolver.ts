@@ -34,7 +34,7 @@ export class DefaultImportResolver implements ImportResolver {
       return (await this.fileSystem.exists(importPath)) ? importPath : null;
     }
 
-    // Search through include paths
+    // Search through include paths FIRST (including for google/protobuf files)
     for (const searchPath of this.includePaths) {
       const fullPath = path.join(searchPath, importPath);
       if (await this.fileSystem.exists(fullPath)) {
@@ -42,10 +42,15 @@ export class DefaultImportResolver implements ImportResolver {
       }
     }
 
-    // Try well-known Google protobuf types
+    // Only fall back to well-known Google protobuf types if not found in include paths
     const wellKnownPath = await this.resolveWellKnownType(importPath);
     if (wellKnownPath) {
       return wellKnownPath;
+    }
+
+    // For WKTs, even if we can't find physical files, protobufjs can handle them
+    if (this.isWellKnownType(importPath)) {
+      return importPath; // Return the import path itself, protobufjs will handle it
     }
 
     return null;
@@ -56,11 +61,6 @@ export class DefaultImportResolver implements ImportResolver {
    */
   async validateImports(imports: string[]): Promise<void> {
     for (const importPath of imports) {
-      // Skip validation for Google WKTs as they are handled specially
-      if (this.isWellKnownType(importPath)) {
-        continue;
-      }
-
       const resolved = await this.resolveImport(importPath);
       if (!resolved) {
         throw new Error(`Cannot resolve import: ${importPath}`);
@@ -82,19 +82,18 @@ export class DefaultImportResolver implements ImportResolver {
         return target;
       }
 
-      // Handle Google WKTs - let protobufjs use its built-in definitions
-      if (this.isWellKnownType(target)) {
-        return target;
-      }
-
-      // For regular imports, do a simple synchronous resolution
-      // Since we've pre-validated that all imports can be resolved async,
-      // this should always succeed for legitimate imports
+      // Search through include paths first (even for google/protobuf files)
+      // This ensures we use the complete versions from Buf modules
       for (const searchPath of this.includePaths) {
         const fullPath = path.join(searchPath, target);
         if (fs.existsSync(fullPath)) {
           return fullPath;
         }
+      }
+
+      // Only fall back to well-known types if not found in include paths
+      if (this.isWellKnownType(target)) {
+        return target;
       }
 
       throw new Error(`Cannot resolve import: ${target}`);
