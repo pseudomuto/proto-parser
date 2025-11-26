@@ -238,6 +238,10 @@ export interface SupersetOptions {
    * - 'ignore': Keeps original names, may result in duplicates
    */
   namespaceConflictResolution?: 'prefix' | 'ignore';
+  /** Base directory for calculating relative paths in comments (default: undefined, uses filenames only) */
+  baseDir?: string;
+  /** Whether to include only local protos (default: true) - excludes external libraries like google.protobuf.*, buf.validate.*, etc. */
+  includeLocalOnly?: boolean;
 }
 
 /**

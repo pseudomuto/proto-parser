@@ -1,0 +1,18 @@
+syntax = "proto3";
+
+package examples.bufresolver;
+
+// Import validation and timestamp support
+import "buf/validate/validate.proto";
+import "google/protobuf/timestamp.proto";
+
+// User message demonstrating imported types
+message User {
+  string user_id = 1 [(buf.validate.field).string.uuid = true];
+  string name = 2 [(buf.validate.field).string.min_len = 1];
+  string email = 3 [(buf.validate.field).string.pattern = "^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\\.[a-zA-Z]{2,}$"];
+  int32 age = 4 [(buf.validate.field).int32.gte = 0];
+  google.protobuf.Timestamp created_at = 5;
+  google.protobuf.Timestamp updated_at = 6;
+}
+

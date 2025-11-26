@@ -1,3 +1,5 @@
+import * as path from 'path';
+
 import { ProtoSet } from './ProtoSet';
 import { parseProtoDirectory } from './parser';
 import { Proto } from './types';
@@ -758,10 +760,39 @@ describe('integration tests', () => {
       syntax: 'proto3',
       packageName: 'unified.common.v1',
       includeComments: true,
+      includeLocalOnly: false, // Include all protos for this test
     });
 
     expect(idl).toContain('syntax = "proto3";');
     expect(idl).toContain('package unified.common.v1;');
     expect(idl.length).toBeGreaterThan(100); // Should contain meaningful content
+  });
+
+  it('should use relative paths when baseDir is provided', async () => {
+    const protoSet = await parseProtoDirectory('./fixtures/api');
+
+    // Test without baseDir - should show filenames only
+    const idlWithoutBaseDir = protoSet.generateSupersetIdl({
+      includeComments: true,
+    });
+
+    const withoutBaseDirLines = idlWithoutBaseDir.split('\n').filter(line => line.includes('// From:'));
+    expect(withoutBaseDirLines.length).toBeGreaterThan(0);
+
+    // Should contain just filenames
+    expect(withoutBaseDirLines.some(line => /\/\/ From: \w+\.proto$/.test(line))).toBe(true);
+
+    // Test with baseDir - should show relative paths
+    const baseDir = path.resolve('./fixtures');
+    const idlWithBaseDir = protoSet.generateSupersetIdl({
+      includeComments: true,
+      baseDir: baseDir,
+    });
+
+    const withBaseDirLines = idlWithBaseDir.split('\n').filter(line => line.includes('// From:'));
+    expect(withBaseDirLines.length).toBeGreaterThan(0);
+
+    // Should contain relative paths with directory structure
+    expect(withBaseDirLines.some(line => line.includes('api/'))).toBe(true);
   });
 });

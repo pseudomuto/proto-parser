@@ -1,3 +1,5 @@
+import * as path from 'path';
+
 import { parseProto } from './parser';
 import { Enum, Field, Message, OneOf, ParseOptions, Proto, Service, ServiceMethod, SupersetOptions } from './types';
 
@@ -27,6 +29,48 @@ export class ProtoSet {
    */
   constructor(protos: Proto[]) {
     this.#protos = [...protos];
+  }
+
+  /**
+   * Determines if a proto file should be considered "local" (part of the project)
+   * versus "external" (from external libraries).
+   *
+   * @param proto - The proto object to check
+   * @param baseDir - Optional base directory to help determine locality
+   * @returns true if the proto is considered local to the project
+   */
+  private isLocalProto(proto: Proto, baseDir?: string): boolean {
+    // If we have a baseDir, use path-based detection as primary method
+    if (baseDir && proto.path) {
+      try {
+        const relativePath = path.relative(baseDir, proto.path);
+        // If the relative path starts with '..' or is absolute, it's external
+        if (relativePath.startsWith('..') || path.isAbsolute(relativePath)) {
+          return false;
+        }
+        // If the path is within baseDir, it's local regardless of namespace
+        return true;
+      } catch {
+        // If path.relative fails, fall back to namespace-based detection
+      }
+    }
+
+    // Fallback to namespace-based detection for files without valid paths
+    const externalNamespacePatterns = ['google.protobuf', 'google.api', 'buf.validate', 'grpc.', 'protoc_gen_'];
+
+    // Get the package namespace from the first available definition
+    const namespace =
+      proto.messages?.[0]?.namespace || proto.services?.[0]?.namespace || proto.enums?.[0]?.namespace || '';
+
+    // Check if namespace matches external patterns
+    for (const pattern of externalNamespacePatterns) {
+      if (namespace.startsWith(pattern)) {
+        return false;
+      }
+    }
+
+    // If we can't determine based on path or namespace, assume local
+    return true;
   }
 
   /**
@@ -106,6 +150,44 @@ export class ProtoSet {
    */
   getProtos(): Proto[] {
     return [...this.#protos];
+  }
+
+  /**
+   * Returns an array of local Proto objects (part of the current project).
+   *
+   * @param baseDir - Optional base directory to help determine locality
+   * @returns Array of local Proto objects
+   */
+  getLocalProtos(baseDir?: string): Proto[] {
+    return this.#protos.filter(proto => this.isLocalProto(proto, baseDir));
+  }
+
+  /**
+   * Returns an array of external Proto objects (from external libraries).
+   *
+   * @param baseDir - Optional base directory to help determine locality
+   * @returns Array of external Proto objects
+   */
+  getExternalProtos(baseDir?: string): Proto[] {
+    return this.#protos.filter(proto => !this.isLocalProto(proto, baseDir));
+  }
+
+  /**
+   * Gets imports from a specific set of protos.
+   *
+   * @param protos - Array of Proto objects to get imports from
+   * @returns Array of unique import paths
+   */
+  private getImportsFromProtos(protos: Proto[]): string[] {
+    const importSet = new Set<string>();
+    for (const proto of protos) {
+      if (proto.imports) {
+        for (const importPath of proto.imports) {
+          importSet.add(importPath);
+        }
+      }
+    }
+    return Array.from(importSet).sort();
   }
 
   /**
@@ -296,7 +378,14 @@ export class ProtoSet {
    * @since 0.1.0
    */
   generateSupersetIdl(options: SupersetOptions = {}): string {
-    const { syntax = 'proto3', packageName, includeComments = true, namespaceConflictResolution = 'prefix' } = options;
+    const {
+      syntax = 'proto3',
+      packageName,
+      includeComments = true,
+      namespaceConflictResolution = 'prefix',
+      baseDir,
+      includeLocalOnly = true,
+    } = options;
 
     const lines: string[] = [];
 
@@ -310,8 +399,11 @@ export class ProtoSet {
       lines.push('');
     }
 
-    // Add all unique imports
-    const imports = this.getAllImports();
+    // Get the protos to process (local only or all)
+    const protosToProcess = includeLocalOnly ? this.getLocalProtos(baseDir) : this.#protos;
+
+    // Add all unique imports from the protos being processed
+    const imports = this.getImportsFromProtos(protosToProcess);
     if (imports.length > 0) {
       for (const importPath of imports) {
         lines.push(`import "${importPath}";`);
@@ -319,17 +411,138 @@ export class ProtoSet {
       lines.push('');
     }
 
-    // Collect all definitions with conflict resolution
-    const { messages, enums, services } = this.collectAllDefinitionsWithConflictResolution(namespaceConflictResolution);
+    // Track used names for conflict resolution
+    const usedNames = {
+      messages: new Set<string>(),
+      enums: new Set<string>(),
+      services: new Set<string>(),
+    };
+
+    // Track suffix counters for names without namespaces
+    const suffixCounters = {
+      messages: new Map<string, number>(),
+      enums: new Map<string, number>(),
+      services: new Map<string, number>(),
+    };
+
+    // Helper function to get display path
+    const getDisplayPath = (proto: Proto): string => {
+      if (baseDir && proto.path) {
+        try {
+          const relativePath = path.relative(baseDir, proto.path);
+          // If within baseDir (local file), use relative path
+          if (!relativePath.startsWith('..')) {
+            return relativePath;
+          }
+        } catch {
+          // If path.relative fails, fall back to other methods
+        }
+      }
+
+      // For external files (outside baseDir), try to extract the import path from the full path
+      if (proto.path) {
+        // Extract import path from temp directory structure
+        // e.g., /tmp/.buf-resolver-xxx/buf/validate/validate.proto -> buf/validate/validate.proto
+        const pathSegments = proto.path.split(path.sep);
+
+        // Look for common import path patterns (for BufResolver and similar)
+        const importPathPatterns = ['buf', 'google', 'grpc', 'protoc'];
+
+        for (let i = 0; i < pathSegments.length; i++) {
+          const segment = pathSegments[i];
+          if (importPathPatterns.some(pattern => segment.startsWith(pattern))) {
+            // Found a pattern, return everything from this segment onwards
+            return pathSegments.slice(i).join('/');
+          }
+        }
+      }
+
+      // Default to just the filename for backward compatibility
+      return proto.file;
+    };
+
+    // Collect all enums first
+    const allEnums: Array<{ enum: Enum; resolvedName: string; displayPath: string }> = [];
+    for (const proto of protosToProcess) {
+      const displayPath = getDisplayPath(proto);
+
+      // Process top-level enums
+      if (proto.enums) {
+        for (const enumDef of proto.enums) {
+          const resolvedName = this.resolveNameConflict(
+            enumDef.name,
+            enumDef.namespace,
+            usedNames.enums,
+            namespaceConflictResolution,
+            suffixCounters.enums,
+          );
+          allEnums.push({ enum: enumDef, resolvedName, displayPath });
+          usedNames.enums.add(resolvedName);
+        }
+      }
+
+      // Process nested enums from messages
+      if (proto.messages) {
+        for (const message of proto.messages) {
+          this.collectNestedEnumsForSuperset(
+            message,
+            displayPath,
+            usedNames.enums,
+            namespaceConflictResolution,
+            suffixCounters.enums,
+            allEnums,
+          );
+        }
+      }
+    }
+
+    // Collect all messages
+    const allMessages: Array<{ message: Message; resolvedName: string; displayPath: string }> = [];
+    for (const proto of protosToProcess) {
+      const displayPath = getDisplayPath(proto);
+
+      if (proto.messages) {
+        for (const message of proto.messages) {
+          this.collectMessagesRecursivelyForSuperset(
+            message,
+            displayPath,
+            usedNames.messages,
+            namespaceConflictResolution,
+            suffixCounters.messages,
+            allMessages,
+          );
+        }
+      }
+    }
+
+    // Collect all services
+    const allServices: Array<{ service: Service; resolvedName: string; displayPath: string }> = [];
+    for (const proto of protosToProcess) {
+      const displayPath = getDisplayPath(proto);
+
+      if (proto.services) {
+        for (const service of proto.services) {
+          const resolvedName = this.resolveNameConflict(
+            service.name,
+            service.namespace,
+            usedNames.services,
+            namespaceConflictResolution,
+            suffixCounters.services,
+          );
+          allServices.push({ service, resolvedName, displayPath });
+          usedNames.services.add(resolvedName);
+        }
+      }
+    }
 
     // Add enum definitions
-    if (enums.length > 0) {
+    if (allEnums.length > 0) {
       if (includeComments) {
         lines.push('// Enum definitions');
       }
-      for (const enumDef of enums) {
-        if (includeComments && enumDef.sourceFile) {
-          lines.push(`// From: ${enumDef.sourceFile}`);
+      for (const enumDef of allEnums) {
+        if (includeComments) {
+          lines.push(`// From: ${enumDef.displayPath}`);
         }
         lines.push(...this.formatEnum(enumDef.enum, enumDef.resolvedName));
         lines.push('');
@@ -337,13 +550,13 @@ export class ProtoSet {
     }
 
     // Add message definitions
-    if (messages.length > 0) {
+    if (allMessages.length > 0) {
       if (includeComments) {
         lines.push('// Message definitions');
       }
-      for (const messageDef of messages) {
-        if (includeComments && messageDef.sourceFile) {
-          lines.push(`// From: ${messageDef.sourceFile}`);
+      for (const messageDef of allMessages) {
+        if (includeComments) {
+          lines.push(`// From: ${messageDef.displayPath}`);
         }
         lines.push(...this.formatMessage(messageDef.message, messageDef.resolvedName, 0));
         lines.push('');
@@ -351,13 +564,13 @@ export class ProtoSet {
     }
 
     // Add service definitions
-    if (services.length > 0) {
+    if (allServices.length > 0) {
       if (includeComments) {
         lines.push('// Service definitions');
       }
-      for (const serviceDef of services) {
-        if (includeComments && serviceDef.sourceFile) {
-          lines.push(`// From: ${serviceDef.sourceFile}`);
+      for (const serviceDef of allServices) {
+        if (includeComments) {
+          lines.push(`// From: ${serviceDef.displayPath}`);
         }
         lines.push(...this.formatService(serviceDef.service, serviceDef.resolvedName));
         lines.push('');
@@ -365,6 +578,107 @@ export class ProtoSet {
     }
 
     return lines.join('\n').trim();
+  }
+
+  /**
+   * Recursively collects nested enums from a message for superset generation.
+   */
+  private collectNestedEnumsForSuperset(
+    message: Message,
+    displayPath: string,
+    usedNames: Set<string>,
+    strategy: 'prefix' | 'ignore',
+    suffixCounter: Map<string, number>,
+    allEnums: Array<{ enum: Enum; resolvedName: string; displayPath: string }>,
+  ): void {
+    if (message.nestedEnums) {
+      for (const enumDef of message.nestedEnums) {
+        const resolvedName = this.resolveNameConflict(
+          enumDef.name,
+          enumDef.namespace,
+          usedNames,
+          strategy,
+          suffixCounter,
+        );
+        allEnums.push({ enum: enumDef, resolvedName, displayPath });
+        usedNames.add(resolvedName);
+      }
+    }
+
+    if (message.nestedMessages) {
+      for (const nestedMessage of message.nestedMessages) {
+        this.collectNestedEnumsForSuperset(nestedMessage, displayPath, usedNames, strategy, suffixCounter, allEnums);
+      }
+    }
+  }
+
+  /**
+   * Recursively collects messages for superset generation.
+   */
+  private collectMessagesRecursivelyForSuperset(
+    message: Message,
+    displayPath: string,
+    usedNames: Set<string>,
+    strategy: 'prefix' | 'ignore',
+    suffixCounter: Map<string, number>,
+    allMessages: Array<{ message: Message; resolvedName: string; displayPath: string }>,
+  ): void {
+    // Check if we already have an equivalent message
+    const existingMessageIndex = allMessages.findIndex(item =>
+      this.areMessagesEquivalent(item.message, message, item.displayPath, displayPath),
+    );
+
+    if (existingMessageIndex >= 0) {
+      // Found a duplicate - decide which one to keep
+      const existing = allMessages[existingMessageIndex];
+      const current = { message, displayPath };
+      const preferred = this.getPreferredMessageSource(existing, current);
+
+      // If we prefer the current message, replace the existing one
+      if (preferred === current) {
+        // Remove the old resolved name from usedNames
+        usedNames.delete(existing.resolvedName);
+
+        // Calculate new resolved name for the preferred message
+        const resolvedName = this.resolveNameConflict(
+          message.name,
+          message.namespace,
+          usedNames,
+          strategy,
+          suffixCounter,
+        );
+
+        // Replace the existing message with the preferred one
+        allMessages[existingMessageIndex] = { message, resolvedName, displayPath };
+        usedNames.add(resolvedName);
+      }
+      // If we prefer the existing message, do nothing (skip adding the current one)
+    } else {
+      // No duplicate found - process the message normally
+      const resolvedName = this.resolveNameConflict(
+        message.name,
+        message.namespace,
+        usedNames,
+        strategy,
+        suffixCounter,
+      );
+      allMessages.push({ message, resolvedName, displayPath });
+      usedNames.add(resolvedName);
+    }
+
+    // Process nested messages recursively
+    if (message.nestedMessages) {
+      for (const nestedMessage of message.nestedMessages) {
+        this.collectMessagesRecursivelyForSuperset(
+          nestedMessage,
+          displayPath,
+          usedNames,
+          strategy,
+          suffixCounter,
+          allMessages,
+        );
+      }
+    }
   }
 
   /**
@@ -494,6 +808,133 @@ export class ProtoSet {
         );
       }
     }
+  }
+
+  /**
+   * Checks if two messages are truly equivalent and should be deduplicated.
+   * This is more conservative than just structural equivalence - it only treats
+   * messages as equivalent if they represent the same logical message from import chains.
+   */
+  private areMessagesEquivalent(msg1: Message, msg2: Message, displayPath1: string, displayPath2: string): boolean {
+    // Basic name check
+    if (msg1.name !== msg2.name) {
+      return false;
+    }
+
+    // Compare field count
+    const fields1 = msg1.fields || [];
+    const fields2 = msg2.fields || [];
+    if (fields1.length !== fields2.length) {
+      return false;
+    }
+
+    // Compare each field
+    for (let i = 0; i < fields1.length; i++) {
+      const field1 = fields1[i];
+      const field2 = fields2[i];
+
+      if (
+        field1.name !== field2.name ||
+        field1.type !== field2.type ||
+        field1.number !== field2.number ||
+        field1.rule !== field2.rule
+      ) {
+        return false;
+      }
+    }
+
+    // Compare oneOf fields
+    const oneOfs1 = msg1.oneofs || [];
+    const oneOfs2 = msg2.oneofs || [];
+    if (oneOfs1.length !== oneOfs2.length) {
+      return false;
+    }
+
+    for (let i = 0; i < oneOfs1.length; i++) {
+      const oneOf1 = oneOfs1[i];
+      const oneOf2 = oneOfs2[i];
+
+      if (oneOf1.name !== oneOf2.name || (oneOf1.fieldNames?.length || 0) !== (oneOf2.fieldNames?.length || 0)) {
+        return false;
+      }
+    }
+
+    // Additional check: Only deduplicate if this looks like an import relationship
+    // We should be conservative and only deduplicate if one path suggests it's an imported
+    // version of the other (e.g., user.proto vs service.proto importing user.proto)
+    const isLikelyImportRelationship = this.isLikelyImportDuplicate(displayPath1, displayPath2, msg1, msg2);
+
+    return isLikelyImportRelationship;
+  }
+
+  /**
+   * Determines if two messages with the same structure are likely duplicates due to imports
+   * rather than legitimate separate definitions.
+   */
+  private isLikelyImportDuplicate(displayPath1: string, displayPath2: string, msg1: Message, msg2: Message): boolean {
+    // If the display paths are identical, these are definitely the same message
+    if (displayPath1 === displayPath2) {
+      return true;
+    }
+
+    // If both have the same base filename, they're likely the same proto file
+    const baseName1 = displayPath1.split('/').pop()?.replace('.proto', '');
+    const baseName2 = displayPath2.split('/').pop()?.replace('.proto', '');
+    if (baseName1 && baseName2 && baseName1 === baseName2) {
+      return true;
+    }
+
+    // Check namespace relationship - if one has empty namespace and the other has
+    // a namespace that matches the package, this could be an import situation
+    const namespace1 = msg1.namespace || '';
+    const namespace2 = msg2.namespace || '';
+
+    // If namespaces are different and both non-empty, these are likely separate definitions
+    if (namespace1 !== namespace2 && namespace1.length > 0 && namespace2.length > 0) {
+      return false;
+    }
+
+    // For the specific case we're fixing: if one message comes from a file that matches
+    // the message name (e.g., User from user.proto) and the other comes from a different
+    // file (e.g., User from service.proto), this is likely an import duplicate
+    const messageNameLower = msg1.name.toLowerCase();
+    const isMsg1FromOwnFile = baseName1?.toLowerCase() === messageNameLower;
+    const isMsg2FromOwnFile = baseName2?.toLowerCase() === messageNameLower;
+
+    if (isMsg1FromOwnFile && !isMsg2FromOwnFile) {
+      return true; // msg2 is likely importing from msg1's file
+    }
+    if (isMsg2FromOwnFile && !isMsg1FromOwnFile) {
+      return true; // msg1 is likely importing from msg2's file
+    }
+
+    // If we can't determine a clear import relationship, be conservative and don't deduplicate
+    return false;
+  }
+
+  /**
+   * Determines which message source should be preferred when duplicates are found.
+   * Prefers messages from their original source file over imported references.
+   */
+  private getPreferredMessageSource(
+    msg1: { message: Message; displayPath: string },
+    msg2: { message: Message; displayPath: string },
+  ): { message: Message; displayPath: string } {
+    // Prefer the message with fewer namespace components (likely the original source)
+    const namespace1Length = (msg1.message.namespace || '').split('.').filter(s => s.length > 0).length;
+    const namespace2Length = (msg2.message.namespace || '').split('.').filter(s => s.length > 0).length;
+
+    if (namespace1Length !== namespace2Length) {
+      return namespace1Length < namespace2Length ? msg1 : msg2;
+    }
+
+    // If namespace lengths are equal, prefer the one with shorter display path (likely more direct)
+    if (msg1.displayPath.length !== msg2.displayPath.length) {
+      return msg1.displayPath.length < msg2.displayPath.length ? msg1 : msg2;
+    }
+
+    // If all else is equal, prefer the first one
+    return msg1;
   }
 
   /**

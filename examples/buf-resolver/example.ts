@@ -1,3 +1,5 @@
+import path from 'path';
+
 import { BufResolver, DefaultFileSystem, DefaultImportResolver, parseProtoDirectory } from '../../src';
 
 /**
@@ -38,7 +40,8 @@ async function main() {
       includePaths: tempDirs, // Add temp directories to include paths - they now contain all the proto files
     });
 
-    // Parse our example proto file that imports from Buf modules
+    // Parse our example proto files that import from Buf modules
+    // This will now pick up both user.proto and service.proto
     const protos = await parseProtoDirectory(__dirname, {
       importResolver,
       keepCase: true,
@@ -71,7 +74,33 @@ async function main() {
     await bufResolver.cleanup();
     console.log('\n✓ Cleaned up temporary directories');
 
-    idl = protos.generateSupersetIdl();
+    // Demonstrate the file attribution feature
+    console.log('\n🔍 File attribution demonstration:');
+
+    // Show all Proto objects that were created
+    console.log(`Total Proto objects created: ${protos.size()}`);
+    for (const proto of protos.getProtos()) {
+      console.log(
+        `  - ${proto.file}: ${proto.messages?.length || 0} messages, ${proto.services?.length || 0} services`,
+      );
+    }
+
+    // Show sample file attribution from full IDL (including external protos)
+    const fullIdl = protos.generateSupersetIdl({
+      baseDir: path.resolve(__dirname, '../../'),
+      includeComments: true,
+      includeLocalOnly: false,
+    });
+    const lines = fullIdl.split('\n');
+    const relevantLines = lines.filter(line => line.includes('// From:'));
+    const uniqueAttributions = [...new Set(relevantLines)];
+    console.log('\nSample file attributions found:');
+    uniqueAttributions.slice(0, 5).forEach(line => console.log(`  ${line}`));
+
+    idl = protos.generateSupersetIdl({
+      baseDir: path.resolve(__dirname, '../../'),
+      includeComments: true,
+    });
   } catch (error) {
     console.error('✗ Failed to preload and parse with BufResolver:', error);
   }
