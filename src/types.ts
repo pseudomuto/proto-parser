@@ -310,25 +310,6 @@ export interface ImportResolver {
 }
 
 /**
- * Configuration options for parsing FileDescriptorSet files.
- *
- * @public
- * @since 0.2.0
- */
-export interface FileDescriptorSetParseOptions {
-  /** Whether to preserve field name casing (default: true) */
-  keepCase?: boolean;
-  /** Whether to generate import statements for dependencies (default: true) */
-  generateImports?: boolean;
-  /** Proto syntax to assume if not specified in descriptor (default: 'proto3') */
-  defaultSyntax?: 'proto2' | 'proto3';
-  /** Custom content processor for converting protobufjs objects to internal types */
-  contentProcessor?: ContentProcessor;
-  /** Custom filesystem implementation for file operations */
-  fileSystem?: FileSystem;
-}
-
-/**
  * Internal type for ParseOptions with all fields populated with defaults.
  *
  * @internal
@@ -400,6 +381,20 @@ export interface FileSystem {
    * @param encoding File encoding (e.g., 'utf8')
    */
   writeFile(path: string, content: string, encoding: BufferEncoding): Promise<void>;
+
+  /**
+   * Write a file with buffer content.
+   * @param path File path
+   * @param content File content as Buffer
+   */
+  writeFile(path: string, content: Buffer): Promise<void>;
+
+  /**
+   * Remove a directory.
+   * @param path Directory path to remove
+   * @param options Options including recursive removal
+   */
+  rmdir(path: string, options?: { recursive?: boolean }): Promise<void>;
 
   /**
    * Read a file.

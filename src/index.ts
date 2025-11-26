@@ -9,27 +9,16 @@
  */
 
 export { parseProto, parseProtoDirectory } from './parser';
-export { parseFileDescriptorSet } from './descriptorParser';
 export { ProtoSet } from './ProtoSet';
-
-// Export FileDescriptor interfaces for use in custom import resolvers
-export type {
-  FieldDescriptor,
-  MessageDescriptor,
-  EnumValueDescriptor,
-  EnumDescriptor,
-  MethodDescriptor,
-  ServiceDescriptor,
-  FileDescriptor,
-  FileDescriptorSetData,
-  FileDescriptorSetInput,
-} from './descriptorParser';
 
 // Export interfaces and default implementations
 export { DefaultContentProcessor } from './DefaultContentProcessor';
 export { DefaultFileSystem } from './DefaultFileSystem';
-export { DefaultImportResolver, BufImportResolver, BufApiError, BufConfigurationError } from './resolvers';
-export type { BufImportResolverOptions } from './resolvers';
+export { DefaultImportResolver } from './resolvers';
+
+// Export Buf-related utilities
+export { BufResolver, BufResolverError } from './buf';
+export type { BufResolverOptions } from './buf';
 export { createDefaultParseOptions } from './defaults';
 
 // Export all types

@@ -33,8 +33,23 @@ export class DefaultFileSystem implements FileSystem {
    * @param content File content
    * @param encoding File encoding (e.g., 'utf8')
    */
-  async writeFile(path: string, content: string, encoding: BufferEncoding): Promise<void> {
-    await fs.promises.writeFile(path, content, encoding);
+  async writeFile(path: string, content: string, encoding: BufferEncoding): Promise<void>;
+  async writeFile(path: string, content: Buffer): Promise<void>;
+  async writeFile(path: string, content: string | Buffer, encoding?: BufferEncoding): Promise<void> {
+    if (Buffer.isBuffer(content)) {
+      await fs.promises.writeFile(path, content);
+    } else {
+      await fs.promises.writeFile(path, content, encoding!);
+    }
+  }
+
+  /**
+   * Remove a directory.
+   * @param path Directory path to remove
+   * @param options Options including recursive removal
+   */
+  async rmdir(path: string, options?: { recursive?: boolean }): Promise<void> {
+    await fs.promises.rmdir(path, options);
   }
 
   /**

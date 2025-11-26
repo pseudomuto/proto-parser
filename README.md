@@ -177,48 +177,21 @@ Asynchronously parses all Protocol Buffer files in a directory.
 
 **Returns:** `Promise<ProtoSet>` - A promise that resolves to a ProtoSet containing all parsed proto files
 
-
-#### `parseFileDescriptorSet(input, options?)`
-
-Parses a FileDescriptorSet from a JSON file or object. FileDescriptorSet is a protobuf format used to represent compiled proto files.
-
-**Parameters:**
-
-- `input` (string | FileDescriptorSetInput) - Either a file path to a JSON file or a FileDescriptorSet object
-- `options` (FileDescriptorSetParseOptions, optional) - Configuration options for parsing
-
-**Returns:** `Promise<Proto[]>` - A promise that resolves to an array of Proto objects
-
-**Example:**
-```typescript
-import { parseFileDescriptorSet } from '@pseudomutojs/proto-parser';
-
-// Parse from JSON file
-const protos = await parseFileDescriptorSet('./compiled-protos.json');
-
-// Parse from object
-const descriptorSet = {
-  fileDescriptorSet: {
-    file: [/* FileDescriptor objects */]
-  }
-};
-const protos = await parseFileDescriptorSet(descriptorSet);
-```
-
 #### `DefaultImportResolver` Class
 
 The default implementation of the `ImportResolver` interface, providing standard import resolution logic.
 
 **Constructor:**
 ```typescript
-new DefaultImportResolver(baseDir: string, options?: ParseOptions)
+new DefaultImportResolver(baseDir: string, fileSystem: FileSystem, options?: ParseOptions)
 ```
 
 **Usage:**
 ```typescript
-import { DefaultImportResolver } from '@pseudomutojs/proto-parser';
+import { DefaultImportResolver, DefaultFileSystem } from '@pseudomutojs/proto-parser';
 
-const resolver = new DefaultImportResolver('/base/directory', {
+const fileSystem = new DefaultFileSystem();
+const resolver = new DefaultImportResolver('/base/directory', fileSystem, {
   includePaths: ['./protos', './third_party']
 });
 
@@ -284,6 +257,66 @@ const absPath = await fs.resolve('./relative/path.proto');
 - `isFile(filePath: string): Promise<boolean>` - Check if path points to a file (not directory)
 - `resolve(...paths: string[]): Promise<string>` - Resolve to absolute path
 
+#### `BufResolver` Class
+
+The BufResolver downloads complete Buf Schema Registry modules as tar.gz archives and extracts them to temporary directories. This provides superior performance and fidelity compared to individual file requests.
+
+**Constructor:**
+```typescript
+new BufResolver(modules: string[], options?: BufResolverOptions)
+```
+
+**Usage:**
+```typescript
+import { BufResolver, DefaultFileSystem, DefaultImportResolver, parseProto } from '@pseudomutojs/proto-parser';
+
+// Create resolver with modules to preload
+const bufResolver = new BufResolver([
+  'buf.build/bufbuild/protovalidate:v1.0.0',
+  'buf.build/googleapis/googleapis'
+], {
+  includeWKTs: true, // Automatically includes protocolbuffers/wellknowntypes (default)
+  bufToken: process.env.BUF_TOKEN // Optional: for private modules
+});
+
+// Download and extract modules to temporary directories
+const tempDirs = await bufResolver.preloadModules();
+
+// Integrate with import resolver
+const fileSystem = new DefaultFileSystem();
+const importResolver = new DefaultImportResolver(__dirname, fileSystem, {
+  includePaths: tempDirs
+});
+
+// Parse proto files with Buf module dependencies
+const proto = await parseProto('./api.proto', { importResolver });
+
+// Clean up temporary directories when done
+await bufResolver.cleanup();
+```
+
+**Key advantages:**
+- Downloads original proto files (preserves comments and formatting)
+- Single request per module vs. multiple file requests
+- Automatic dependency resolution with complete module archives
+- Integrates seamlessly with existing ImportResolver architecture
+
+**Options:**
+```typescript
+interface BufResolverOptions {
+  /** Optional Buf API token for authenticated requests to private modules */
+  bufToken?: string;
+  /** Base directory for temporary files (defaults to OS temp directory) */
+  tempDir?: string;
+  /** FileSystem implementation to use (defaults to DefaultFileSystem) */
+  fileSystem?: FileSystem;
+  /** Whether to include dependencies when downloading modules (defaults to true) */
+  includeDependencies?: boolean;
+  /** Whether to automatically include Google Protocol Buffer well-known types (defaults to true) */
+  includeWKTs?: boolean;
+}
+```
+
 #### `createDefaultParseOptions(baseDir, options?)`
 
 Helper function to create fully resolved ParseOptions with defaults populated.
@@ -304,61 +337,6 @@ const resolvedOptions = createDefaultParseOptions('/base/dir', {
 });
 ```
 
-#### `BufImportResolver` Class
-
-A built-in import resolver that extends `DefaultImportResolver` to support resolving Protocol Buffer imports from the [Buf Schema Registry](https://buf.build) (BSR).
-
-**Constructor:**
-```typescript
-new BufImportResolver(
-  baseDir: string,
-  moduleMapping: Record<string, string>,
-  options?: BufImportResolverOptions
-)
-```
-
-**Parameters:**
-- `baseDir` (string) - Base directory for local import resolution
-- `moduleMapping` (Record<string, string>) - Maps import patterns to Buf module coordinates
-- `options` (BufImportResolverOptions, optional) - Configuration options including:
-  - `bufToken` (string, optional) - Authentication token for private modules
-  - `cacheDir` (string, optional) - Directory for caching downloaded proto files (defaults to temp directory)
-  - All standard `ParseOptions` fields
-
-**Pattern Matching:**
-The resolver supports three types of pattern matching:
-- **Prefix matching**: `"buf/validate/": "buf.build/bufbuild/protovalidate"` - Matches all imports starting with the prefix
-- **Wildcard matching**: `"google/type/*.proto": "buf.build/googleapis/googleapis"` - Supports `*` (any filename) and `**` (any path)
-- **Exact matching**: `"exact/file.proto": "buf.build/exact/module"` - Matches the exact import path
-
-**Usage:**
-```typescript
-import { BufImportResolver, parseProto } from '@pseudomutojs/proto-parser';
-
-const resolver = new BufImportResolver(
-  process.cwd(),
-  {
-    // Map patterns to Buf modules (with optional versions)
-    "buf/validate/": "buf.build/bufbuild/protovalidate:v1.0.0",
-    "google/type/*.proto": "buf.build/googleapis/googleapis",
-    "company/internal/": "buf.build/mycompany/internal"
-  },
-  {
-    bufToken: process.env.BUF_TOKEN, // For private modules
-    cacheDir: '/path/to/cache'       // Custom cache location
-  }
-);
-
-const proto = await parseProto('./api.proto', {
-  importResolver: resolver
-});
-```
-
-**Features:**
-- Automatic caching of downloaded proto files to reduce API calls
-- Authentication support for private Buf modules
-- Fallback to default resolution for non-Buf imports (local files, WKTs)
-- Pattern-based module mapping for flexible import resolution
 
 ### ProtoSet Class
 
@@ -457,16 +435,6 @@ interface SupersetOptions {
   namespaceConflictResolution?: 'prefix' | 'ignore';
 }
 
-interface FileDescriptorSetParseOptions {
-  /** Whether to preserve field name casing (default: true) */
-  keepCase?: boolean;
-  /** Whether to generate import statements for dependencies (default: true) */
-  generateImports?: boolean;
-  /** Proto syntax to assume if not specified in descriptor (default: 'proto3') */
-  defaultSyntax?: 'proto2' | 'proto3';
-  /** Custom content processor for converting protobufjs objects to internal types */
-  contentProcessor?: ContentProcessor;
-}
 ```
 
 ### Type Definitions
@@ -547,7 +515,7 @@ The library supports custom import resolution logic through the `ImportResolver`
 Implement caching to improve performance when parsing multiple files that share imports:
 
 ```typescript
-import { DefaultImportResolver, parseProto } from '@pseudomutojs/proto-parser';
+import { DefaultImportResolver, DefaultFileSystem, parseProto } from '@pseudomutojs/proto-parser';
 
 class CachingImportResolver extends DefaultImportResolver {
   private cache = new Map<string, string | null>();
@@ -564,8 +532,9 @@ class CachingImportResolver extends DefaultImportResolver {
 }
 
 // Use the caching resolver
+const fileSystem = new DefaultFileSystem();
 const proto = await parseProto('./api.proto', {
-  importResolver: new CachingImportResolver('/base/dir', { includePaths: ['./protos'] })
+  importResolver: new CachingImportResolver('/base/dir', fileSystem, { includePaths: ['./protos'] })
 });
 ```
 
@@ -635,50 +604,22 @@ const proto = await parseProto('./api.proto', {
 });
 ```
 
-#### Using BufImportResolver with Private Modules
-
-```typescript
-import { BufImportResolver, parseProtoDirectory } from '@pseudomutojs/proto-parser';
-
-// Configure resolver for private Buf modules
-const resolver = new BufImportResolver(
-  __dirname,
-  {
-    // Map your organization's private modules
-    "company/apis/": "buf.build/mycompany/apis:v1.2.0",
-    "company/common/": "buf.build/mycompany/common"
-  },
-  {
-    // Provide authentication token for private modules
-    bufToken: process.env.BUF_TOKEN,
-    // Use persistent cache directory
-    cacheDir: path.join(os.homedir(), '.proto-cache')
-  }
-);
-
-// Parse directory with Buf imports
-const protoSet = await parseProtoDirectory('./protos', {
-  importResolver: resolver,
-  recursive: true
-});
-```
-
-For more examples, see the [BufImportResolver example](./examples/buf-import-resolver) which demonstrates pattern matching and API integration.
 
 #### Multi-Source Import Resolver
 
 Combine multiple resolution strategies:
 
 ```typescript
-import { DefaultImportResolver } from '@pseudomutojs/proto-parser';
+import { DefaultImportResolver, DefaultFileSystem, FileSystem } from '@pseudomutojs/proto-parser';
 
 class MultiSourceImportResolver extends DefaultImportResolver {
   constructor(
     baseDir: string,
+    fileSystem: FileSystem,
     private remoteSources: string[] = [],
     options = {}
   ) {
-    super(baseDir, options);
+    super(baseDir, fileSystem, options);
   }
 
   async resolveImport(importPath: string): Promise<string | null> {
@@ -712,8 +653,9 @@ class MultiSourceImportResolver extends DefaultImportResolver {
 }
 
 // Use multi-source resolver
+const fileSystem = new DefaultFileSystem();
 const proto = await parseProto('./api.proto', {
-  importResolver: new MultiSourceImportResolver('/local/protos', [
+  importResolver: new MultiSourceImportResolver('/local/protos', fileSystem, [
     'https://raw.githubusercontent.com/googleapis/googleapis/master',
     'https://raw.githubusercontent.com/grpc-ecosystem/grpc-gateway/master'
   ])
@@ -965,7 +907,7 @@ proto.enums?.forEach(enumDef => {
 ## Error Handling
 
 ```typescript
-import { parseProto, BufApiError, BufConfigurationError } from '@pseudomutojs/proto-parser';
+import { parseProto } from '@pseudomutojs/proto-parser';
 
 try {
   const proto = await parseProto('./non-existent.proto');
@@ -976,42 +918,6 @@ try {
     console.error('Import resolution failed:', error.message);
   } else {
     console.error('Failed to parse proto:', error.message);
-  }
-}
-```
-
-### Error Classes
-
-#### `BufApiError`
-
-Thrown when there's an error communicating with the Buf Schema Registry API.
-
-```typescript
-import { BufApiError } from '@pseudomutojs/proto-parser';
-
-try {
-  // Use BufImportResolver with invalid credentials
-} catch (error) {
-  if (error instanceof BufApiError) {
-    console.error('Buf API error:', error.message);
-    // Possible causes: network issues, invalid token, module not found
-  }
-}
-```
-
-#### `BufConfigurationError`
-
-Thrown when the BufImportResolver is configured incorrectly.
-
-```typescript
-import { BufConfigurationError } from '@pseudomutojs/proto-parser';
-
-try {
-  // Create BufImportResolver with invalid module coordinates
-} catch (error) {
-  if (error instanceof BufConfigurationError) {
-    console.error('Buf configuration error:', error.message);
-    // Possible causes: invalid module format, missing required fields
   }
 }
 ```

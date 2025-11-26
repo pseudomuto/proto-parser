@@ -1,0 +1,52 @@
+syntax = "proto3";
+
+package examples.bufresolver;
+
+// Import from Buf modules that will be preloaded by BufResolver
+import "buf/validate/validate.proto";
+import "google/api/annotations.proto";
+import "google/protobuf/timestamp.proto";
+
+// Example service demonstrating usage with preloaded Buf modules
+service UserService {
+  rpc CreateUser(CreateUserRequest) returns (CreateUserResponse) {
+    option (google.api.http) = {
+      post: "/v1/users"
+      body: "*"
+    };
+  }
+
+  rpc GetUser(GetUserRequest) returns (GetUserResponse) {
+    option (google.api.http) = {get: "/v1/users/{user_id}"};
+  }
+}
+
+// Request message with validation rules from buf/validate
+message CreateUserRequest {
+  string name = 1 [(buf.validate.field).string.min_len = 1];
+  string email = 2 [(buf.validate.field).string.pattern = "^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\\.[a-zA-Z]{2,}$"];
+  int32 age = 3 [(buf.validate.field).int32.gte = 0];
+}
+
+message CreateUserResponse {
+  string user_id = 1;
+  google.protobuf.Timestamp created_at = 2;
+}
+
+message GetUserRequest {
+  string user_id = 1 [(buf.validate.field).string.uuid = true];
+}
+
+message GetUserResponse {
+  User user = 1;
+}
+
+// User message demonstrating imported types
+message User {
+  string user_id = 1 [(buf.validate.field).string.uuid = true];
+  string name = 2 [(buf.validate.field).string.min_len = 1];
+  string email = 3 [(buf.validate.field).string.pattern = "^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\\.[a-zA-Z]{2,}$"];
+  int32 age = 4 [(buf.validate.field).int32.gte = 0];
+  google.protobuf.Timestamp created_at = 5;
+  google.protobuf.Timestamp updated_at = 6;
+}

@@ -1,7 +1,7 @@
 /**
  * @fileoverview Functional integration tests for main module exports
  */
-import { ProtoSet, createDefaultParseOptions, parseFileDescriptorSet, parseProto } from './index';
+import { ProtoSet, createDefaultParseOptions, parseProto } from './index';
 
 describe('index - functional integration tests', () => {
   describe('parseProto', () => {
@@ -106,55 +106,6 @@ describe('index - functional integration tests', () => {
       expect(unifiedIdl).toContain('message B');
       expect(unifiedIdl).toContain('string id = 1');
       expect(unifiedIdl).toContain('int32 num = 1');
-    });
-  });
-
-  describe('parseFileDescriptorSet', () => {
-    it('should parse FileDescriptorSet objects', async () => {
-      const descriptorSet = {
-        fileDescriptorSet: {
-          file: [
-            {
-              name: 'test.proto',
-              package: 'test.api',
-              syntax: 'proto3',
-              messageType: [
-                {
-                  name: 'TestMessage',
-                  field: [
-                    {
-                      name: 'id',
-                      number: 1,
-                      label: 1, // LABEL_OPTIONAL
-                      type: 9, // TYPE_STRING
-                    },
-                  ],
-                },
-              ],
-            },
-          ],
-        },
-      };
-
-      const protos = await parseFileDescriptorSet(descriptorSet);
-
-      expect(protos).toHaveLength(1);
-      expect(protos[0].file).toBe('test/api.proto'); // Fixed: matches actual output format
-      expect(protos[0].messages).toHaveLength(1);
-      expect(protos[0].messages![0].name).toBe('TestMessage');
-      expect(protos[0].messages![0].namespace).toBe('test.api');
-    });
-
-    it('should handle empty FileDescriptorSet', async () => {
-      const emptyDescriptorSet = {
-        fileDescriptorSet: {
-          file: [],
-        },
-      };
-
-      await expect(parseFileDescriptorSet(emptyDescriptorSet)).rejects.toThrow(
-        'FileDescriptorSet contains no file descriptors',
-      );
     });
   });
 
