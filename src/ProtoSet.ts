@@ -371,13 +371,33 @@ export class ProtoSet {
    * Collects all definitions with conflict resolution applied.
    */
   private collectAllDefinitionsWithConflictResolution(strategy: 'prefix' | 'ignore'): {
-    messages: Array<{ message: Message; resolvedName: string; sourceFile?: string }>;
+    messages: Array<{
+      message: Message;
+      resolvedName: string;
+      sourceFile?: string;
+    }>;
     enums: Array<{ enum: Enum; resolvedName: string; sourceFile?: string }>;
-    services: Array<{ service: Service; resolvedName: string; sourceFile?: string }>;
+    services: Array<{
+      service: Service;
+      resolvedName: string;
+      sourceFile?: string;
+    }>;
   } {
-    const messages: Array<{ message: Message; resolvedName: string; sourceFile?: string }> = [];
-    const enums: Array<{ enum: Enum; resolvedName: string; sourceFile?: string }> = [];
-    const services: Array<{ service: Service; resolvedName: string; sourceFile?: string }> = [];
+    const messages: Array<{
+      message: Message;
+      resolvedName: string;
+      sourceFile?: string;
+    }> = [];
+    const enums: Array<{
+      enum: Enum;
+      resolvedName: string;
+      sourceFile?: string;
+    }> = [];
+    const services: Array<{
+      service: Service;
+      resolvedName: string;
+      sourceFile?: string;
+    }> = [];
 
     const nameTracker = {
       messages: new Set<string>(),
@@ -449,9 +469,21 @@ export class ProtoSet {
     message: Message,
     sourceFile: string,
     strategy: 'prefix' | 'ignore',
-    nameTracker: { messages: Set<string>; enums: Set<string>; services: Set<string> },
-    suffixCounters: { messages: Map<string, number>; enums: Map<string, number>; services: Map<string, number> },
-    messages: Array<{ message: Message; resolvedName: string; sourceFile?: string }>,
+    nameTracker: {
+      messages: Set<string>;
+      enums: Set<string>;
+      services: Set<string>;
+    },
+    suffixCounters: {
+      messages: Map<string, number>;
+      enums: Map<string, number>;
+      services: Map<string, number>;
+    },
+    messages: Array<{
+      message: Message;
+      resolvedName: string;
+      sourceFile?: string;
+    }>,
     enums: Array<{ enum: Enum; resolvedName: string; sourceFile?: string }>,
   ): void {
     // Process the message itself

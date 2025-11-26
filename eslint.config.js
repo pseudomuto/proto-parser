@@ -1,10 +1,10 @@
-const { defineConfig } = require('eslint/config');
-const eslintPluginPrettierRecommended = require('eslint-plugin-prettier/recommended');
-const pluginJest = require('eslint-plugin-jest');
-const tsParser = require('@typescript-eslint/parser');
-const tsPlugin = require('@typescript-eslint/eslint-plugin');
+import tsPlugin from '@typescript-eslint/eslint-plugin';
+import tsParser from '@typescript-eslint/parser';
+import pluginJest from 'eslint-plugin-jest';
+import eslintPluginPrettierRecommended from 'eslint-plugin-prettier/recommended';
+import { defineConfig } from 'eslint/config';
 
-module.exports = defineConfig([
+export default defineConfig([
   {
     ignores: ['coverage/**/*', 'dist/**/*'],
   },
@@ -95,7 +95,7 @@ module.exports = defineConfig([
     files: ['**/*.js'],
     languageOptions: {
       ecmaVersion: 2020,
-      sourceType: 'commonjs',
+      sourceType: 'module',
     },
   },
   eslintPluginPrettierRecommended,

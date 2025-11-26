@@ -18,7 +18,10 @@ export class MockFileSystem implements FileSystem {
   writeFile = jest.fn().mockResolvedValue(undefined);
   rmdir = jest.fn().mockResolvedValue(undefined);
   readFile = jest.fn().mockResolvedValue(Buffer.from('mock content'));
-  readFileOrLiteral = jest.fn().mockResolvedValue({ content: 'mock content', filePath: '/mock/path.proto' });
+  readFileOrLiteral = jest.fn().mockResolvedValue({
+    content: 'mock content',
+    filePath: '/mock/path.proto',
+  });
   filePathIfExists = jest.fn().mockResolvedValue('/mock/path.proto');
 
   private createMockStats(isFile = true, isDirectory = false): Stats {
@@ -68,7 +71,10 @@ export class MockFileSystem implements FileSystem {
     this.writeFile.mockResolvedValue(undefined);
     this.rmdir.mockResolvedValue(undefined);
     this.readFile.mockResolvedValue(Buffer.from('mock content'));
-    this.readFileOrLiteral.mockResolvedValue({ content: 'mock content', filePath: '/mock/path.proto' });
+    this.readFileOrLiteral.mockResolvedValue({
+      content: 'mock content',
+      filePath: '/mock/path.proto',
+    });
     this.filePathIfExists.mockResolvedValue('/mock/path.proto');
   }
 }
