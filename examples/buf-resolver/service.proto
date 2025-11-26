@@ -6,6 +6,8 @@ package examples.bufresolver;
 import "buf/validate/validate.proto";
 import "google/api/annotations.proto";
 import "google/protobuf/timestamp.proto";
+// Import from local user types
+import "user.proto";
 
 // Example service demonstrating usage with preloaded Buf modules
 service UserService {
@@ -38,15 +40,5 @@ message GetUserRequest {
 }
 
 message GetUserResponse {
-  User user = 1;
-}
-
-// User message demonstrating imported types
-message User {
-  string user_id = 1 [(buf.validate.field).string.uuid = true];
-  string name = 2 [(buf.validate.field).string.min_len = 1];
-  string email = 3 [(buf.validate.field).string.pattern = "^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\\.[a-zA-Z]{2,}$"];
-  int32 age = 4 [(buf.validate.field).int32.gte = 0];
-  google.protobuf.Timestamp created_at = 5;
-  google.protobuf.Timestamp updated_at = 6;
+  User user = 1; // References User from user.proto
 }

@@ -43,12 +43,91 @@ const buildProtoResult = (
 };
 
 /**
+ * Builds a Proto result object with only definitions from the current file (for parseProtoDirectory)
+ */
+const buildProtoResultCurrentFileOnly = (
+  root: protobuf.Root,
+  protoPath: string,
+  content: string,
+  parsed: protobuf.IParserResult,
+  contentProcessor: ContentProcessor,
+  keepCase: boolean,
+): Proto => {
+  root.resolveAll();
+
+  // Parse the content into a clean root to get only this file's definitions
+  const cleanRoot = new protobuf.Root();
+  const cleanParsed = protobuf.parse(content, cleanRoot, {
+    keepCase,
+  });
+
+  // Collect definitions only from the clean root (current file only)
+  const services = contentProcessor.collectAllServices(cleanParsed.root);
+  const messages = contentProcessor.collectAllMessages(cleanParsed.root);
+  const enums = contentProcessor.collectAllEnums(cleanParsed.root);
+
+  return {
+    file: protoPath ? path.basename(protoPath) : 'inline.proto',
+    path: protoPath || '',
+    idl: content,
+    services: services.length > 0 ? services : undefined,
+    messages: messages.length > 0 ? messages : undefined,
+    enums: enums.length > 0 ? enums : undefined,
+    imports: parsed.imports,
+  };
+};
+
+/**
+ * Builds a Proto result object without resolving extensions (for imported files with resolution errors)
+ */
+const buildProtoResultWithoutResolve = (
+  root: protobuf.Root,
+  protoPath: string,
+  content: string,
+  parsed: protobuf.IParserResult,
+  contentProcessor: ContentProcessor,
+): Proto | null => {
+  try {
+    // Don't call root.resolveAll() - this is what causes the extension resolution errors
+
+    // Collect definitions from the parsed root without resolving
+    const services = contentProcessor.collectAllServices(parsed.root);
+    const messages = contentProcessor.collectAllMessages(parsed.root);
+    const enums = contentProcessor.collectAllEnums(parsed.root);
+
+    // Only create a Proto object if we found some definitions
+    if (services.length === 0 && messages.length === 0 && enums.length === 0) {
+      return null;
+    }
+
+    return {
+      file: protoPath ? path.basename(protoPath) : 'inline.proto',
+      path: protoPath || '',
+      idl: content,
+      services: services.length > 0 ? services : undefined,
+      messages: messages.length > 0 ? messages : undefined,
+      enums: enums.length > 0 ? enums : undefined,
+      imports: parsed.imports,
+    };
+  } catch {
+    // If we still can't collect definitions, return null
+    return null;
+  }
+};
+
+/**
  * Handles parsing for any input type - unified async parsing logic
  */
 const parseProtoContent = async (
   input: string,
   resolvedOptions: ResolvedParseOptions,
-): Promise<{ root: protobuf.Root; parsed: protobuf.IParserResult; content: string; protoPath: string }> => {
+): Promise<{
+  root: protobuf.Root;
+  parsed: protobuf.IParserResult;
+  content: string;
+  protoPath: string;
+  importedProtos: Proto[];
+}> => {
   const { content, filePath: protoPath } = await resolvedOptions.fileSystem.readFileOrLiteral(input);
 
   // First parse to get imports without loading to pre-validate
@@ -65,30 +144,64 @@ const parseProtoContent = async (
   const root = new protobuf.Root();
   root.resolvePath = resolvedOptions.importResolver.createProtobufResolver();
 
-  // Load all imports first using the root's resolvePath
-  const failedImports: string[] = [];
+  // Parse imported files as separate Proto objects
+  const importedProtos: Proto[] = [];
   if (tempParsed.imports) {
     for (const importPath of tempParsed.imports) {
       try {
         const resolvedPath = root.resolvePath('', importPath);
         if (resolvedPath) {
+          // Load the import file for protobuf resolution
           await root.load(resolvedPath, { keepCase: resolvedOptions.keepCase });
+
+          // Parse the imported file as a separate Proto object
+          try {
+            const importedContent = await resolvedOptions.fileSystem.readFile(resolvedPath, 'utf8');
+
+            // For imported files, create a clean root and parse only the definitions from that file
+            const cleanRoot = new protobuf.Root();
+            const cleanParsed = protobuf.parse(importedContent, cleanRoot, { keepCase: resolvedOptions.keepCase });
+
+            try {
+              // Try to create the proto object - this might fail for files with unresolvable extensions
+              const importedProto = buildProtoResult(
+                cleanRoot,
+                resolvedPath,
+                importedContent,
+                cleanParsed,
+                resolvedOptions.contentProcessor,
+              );
+              importedProtos.push(importedProto);
+            } catch {
+              // If buildProtoResult fails due to unresolvable extensions, create a basic proto object without resolving
+              const basicImportedProto = buildProtoResultWithoutResolve(
+                cleanRoot,
+                resolvedPath,
+                importedContent,
+                cleanParsed,
+                resolvedOptions.contentProcessor,
+              );
+              if (basicImportedProto) {
+                importedProtos.push(basicImportedProto);
+              }
+            }
+          } catch {
+            // If we can't read the imported file (e.g., WKTs from protobufjs), skip creating a Proto object
+            // The import is still loaded into the root for type resolution
+          }
         }
-      } catch (err) {
-        failedImports.push(`${importPath}: ${err instanceof Error ? err.message : String(err)}`);
+      } catch {
+        // Import failed, but continue with main parsing
       }
     }
   }
-
-  // If critical imports failed, we should still try to continue
-  // but note that some functionality might be missing
 
   // Parse the main content into the root that has all imports loaded
   const parsed = protobuf.parse(content, root, {
     keepCase: resolvedOptions.keepCase,
   });
 
-  return { root, parsed, content, protoPath };
+  return { root, parsed, content, protoPath, importedProtos };
 };
 
 /**
@@ -130,6 +243,9 @@ export const parseProto = async (input: string, options: ParseOptions = {}): Pro
     const resolvedOptions = createDefaultParseOptions(baseDir, { ...options, fileSystem });
 
     const { root, parsed, content, protoPath: finalProtoPath } = await parseProtoContent(input, resolvedOptions);
+
+    // For the single parseProto function, we only return the main proto object
+    // The importedProtos are used by parseProtoDirectory to build a complete ProtoSet
     return buildProtoResult(root, finalProtoPath, content, parsed, resolvedOptions.contentProcessor);
   } catch (error) {
     throw new Error(`Failed to parse proto: ${error instanceof Error ? error.message : String(error)}`);
@@ -241,18 +357,46 @@ export const parseProtoDirectory = async (dirPath: string, options: DirectoryPar
     includePaths: [...parentDirs, ...(parseOptions.includePaths || [])],
   };
 
-  // Parse all proto files
+  // Parse all proto files and collect imported protos
   const protos: Proto[] = [];
+  const allImportedProtos = new Map<string, Proto>(); // Use Map to deduplicate by path
   const errors: string[] = [];
 
   for (const filePath of protoFilePaths) {
     try {
-      const proto = await parseProto(filePath, enhancedOptions);
-      protos.push(proto);
+      const resolvedOptions = createDefaultParseOptions(resolvedDirPath, { ...enhancedOptions, fileSystem });
+      const {
+        root,
+        parsed,
+        content,
+        protoPath: finalProtoPath,
+        importedProtos,
+      } = await parseProtoContent(filePath, resolvedOptions);
+
+      // Add the main proto - use current file only version for proper separation
+      const mainProto = buildProtoResultCurrentFileOnly(
+        root,
+        finalProtoPath,
+        content,
+        parsed,
+        resolvedOptions.contentProcessor,
+        resolvedOptions.keepCase,
+      );
+      protos.push(mainProto);
+
+      // Collect imported protos (deduplicated by path)
+      for (const importedProto of importedProtos) {
+        if (!allImportedProtos.has(importedProto.path)) {
+          allImportedProtos.set(importedProto.path, importedProto);
+        }
+      }
     } catch (error) {
       errors.push(`Failed to parse ${filePath}: ${error instanceof Error ? error.message : String(error)}`);
     }
   }
+
+  // Add all imported protos to the main protos array
+  protos.push(...allImportedProtos.values());
 
   if (errors.length > 0 && protos.length === 0) {
     throw new Error(`Failed to parse any proto files:\n${errors.join('\n')}`);
