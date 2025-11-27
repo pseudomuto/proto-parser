@@ -21,5 +21,8 @@ export { BufModuleProvider, BufModuleProviderError } from './buf';
 export type { BufModuleProviderOptions } from './buf';
 export { createDefaultParseOptions } from './defaults';
 
+// Export error classes
+export { ProtoParserError, ProtoParseError, ProtoBuildError } from './errors';
+
 // Export all types
 export * from './types';

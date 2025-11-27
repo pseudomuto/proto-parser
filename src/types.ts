@@ -1,12 +1,31 @@
 import * as protobuf from 'protobufjs';
 
 /**
- * Generic options type for Protocol Buffer definitions.
+ * Common proto options that can appear in various definitions.
+ * While this type allows for any key-value pairs for flexibility,
+ * common options are documented here for type safety.
  *
  * @public
  * @since 0.1.0
  */
-export type Options = Record<string, unknown>;
+export interface Options {
+  /** Whether this definition is deprecated */
+  deprecated?: boolean;
+  /** Custom JSON name for fields */
+  json_name?: string;
+  /** Whether to use packed encoding for repeated fields */
+  packed?: boolean;
+  /** Java package name */
+  java_package?: string;
+  /** Java outer classname */
+  java_outer_classname?: string;
+  /** Go package name */
+  go_package?: string;
+  /** Whether to allow aliases in enums */
+  allow_alias?: boolean;
+  /** Additional custom options */
+  [key: string]: unknown;
+}
 
 /**
  * Field rule enumeration for Protocol Buffer fields.
