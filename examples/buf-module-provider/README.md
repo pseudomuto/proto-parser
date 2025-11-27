@@ -1,6 +1,6 @@
-# BufResolver Example
+# BufModuleProvider Example
 
-This example demonstrates how to use the `BufResolver` to integrate with Buf Schema Registry modules in your protobuf parsing workflow.
+This example demonstrates how to use the `BufModuleProvider` to integrate with Buf Schema Registry modules in your protobuf parsing workflow.
 
 ## What this example shows
 
@@ -12,7 +12,7 @@ This example demonstrates how to use the `BufResolver` to integrate with Buf Sch
 
 ## Files
 
-- `example.ts` - Main example script showing BufResolver usage
+- `example.ts` - Main example script showing BufModuleProvider usage
 - `example.proto` - Sample proto file that imports from Buf modules
 - `README.md` - This documentation
 
@@ -23,7 +23,7 @@ This example demonstrates how to use the `BufResolver` to integrate with Buf Sch
 npm run build
 
 # Run the example
-cd examples/buf-resolver
+cd examples/buf-module-provider
 npx tsx example.ts
 ```
 
@@ -31,7 +31,7 @@ npx tsx example.ts
 
 The example demonstrates the modern interface-driven architecture:
 
-1. **BufResolver** downloads modules as raw proto files (no FileDescriptorSet reconstruction)
+1. **BufModuleProvider** downloads modules as raw proto files (no FileDescriptorSet reconstruction)
 2. **DefaultFileSystem** provides file system operations 
 3. **DefaultImportResolver** handles import resolution with preloaded module directories
 4. **parseProto** uses the resolver to parse files with all dependencies available

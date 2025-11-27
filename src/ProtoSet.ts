@@ -536,6 +536,11 @@ export class ProtoSet {
       }
     }
 
+    // Sort collections lexicographically for consistent output
+    allEnums.sort((a, b) => a.resolvedName.localeCompare(b.resolvedName));
+    allServices.sort((a, b) => a.resolvedName.localeCompare(b.resolvedName));
+    allMessages.sort((a, b) => a.resolvedName.localeCompare(b.resolvedName));
+
     // Add enum definitions
     if (allEnums.length > 0) {
       if (includeComments) {
@@ -550,20 +555,6 @@ export class ProtoSet {
       }
     }
 
-    // Add message definitions
-    if (allMessages.length > 0) {
-      if (includeComments) {
-        lines.push('// Message definitions');
-      }
-      for (const messageDef of allMessages) {
-        if (includeComments) {
-          lines.push(`// From: ${messageDef.displayPath}`);
-        }
-        lines.push(...this.formatMessage(messageDef.message, messageDef.resolvedName, 0));
-        lines.push('');
-      }
-    }
-
     // Add service definitions
     if (allServices.length > 0) {
       if (includeComments) {
@@ -574,6 +565,20 @@ export class ProtoSet {
           lines.push(`// From: ${serviceDef.displayPath}`);
         }
         lines.push(...this.formatService(serviceDef.service, serviceDef.resolvedName));
+        lines.push('');
+      }
+    }
+
+    // Add message definitions
+    if (allMessages.length > 0) {
+      if (includeComments) {
+        lines.push('// Message definitions');
+      }
+      for (const messageDef of allMessages) {
+        if (includeComments) {
+          lines.push(`// From: ${messageDef.displayPath}`);
+        }
+        lines.push(...this.formatMessage(messageDef.message, messageDef.resolvedName, 0, syntax));
         lines.push('');
       }
     }
@@ -1007,7 +1012,7 @@ export class ProtoSet {
   /**
    * Formats a message definition as proto IDL.
    */
-  private formatMessage(message: Message, name: string, indentLevel: number): string[] {
+  private formatMessage(message: Message, name: string, indentLevel: number, syntax: string = 'proto3'): string[] {
     const indent = '  '.repeat(indentLevel);
     const lines: string[] = [];
 
@@ -1040,7 +1045,7 @@ export class ProtoSet {
 
     // Add regular fields (not part of any oneof)
     for (const field of regularFields) {
-      lines.push(...this.formatField(field, indentLevel + 1));
+      lines.push(...this.formatField(field, indentLevel + 1, syntax));
     }
 
     // Note: Nested enums and messages are handled separately in the collection phase
@@ -1098,9 +1103,16 @@ export class ProtoSet {
   /**
    * Formats a field as proto IDL.
    */
-  private formatField(field: Field, indentLevel: number): string[] {
+  private formatField(field: Field, indentLevel: number, syntax: string = 'proto3'): string[] {
     const indent = '  '.repeat(indentLevel);
-    const rule = field.rule ? `${field.rule} ` : '';
+
+    // In proto3, only include 'repeated' rule, skip 'optional' and 'required'
+    let rule = '';
+    if (field.rule) {
+      if (syntax === 'proto2' || field.rule === 'repeated') {
+        rule = `${field.rule} `;
+      }
+    }
 
     return [`${indent}${rule}${field.type} ${field.name} = ${field.number};`];
   }

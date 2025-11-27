@@ -270,6 +270,88 @@ describe('parseProtoDirectory', () => {
     expect(protoSet.size()).toBe(0);
     expect(protoSet.isEmpty()).toBe(true);
   });
+
+  describe('with moduleProviders', () => {
+    let mockModuleProvider: any;
+
+    beforeEach(() => {
+      mockModuleProvider = {
+        getIncludePaths: jest.fn().mockResolvedValue(['/mock/temp/buf-modules']),
+        dispose: jest.fn().mockResolvedValue(undefined),
+      };
+    });
+
+    it('should call getIncludePaths on all module providers', async () => {
+      const mockProvider2 = {
+        getIncludePaths: jest.fn().mockResolvedValue(['/mock/temp/buf-modules2']),
+        dispose: jest.fn().mockResolvedValue(undefined),
+      };
+
+      const protoSet = await parseProtoDirectory('./fixtures/api/common/v1', {
+        moduleProviders: [mockModuleProvider, mockProvider2],
+      });
+
+      expect(mockModuleProvider.getIncludePaths).toHaveBeenCalledTimes(1);
+      expect(mockProvider2.getIncludePaths).toHaveBeenCalledTimes(1);
+      expect(protoSet.size()).toBeGreaterThan(0);
+    });
+
+    it('should automatically dispose all module providers after parsing', async () => {
+      const mockProvider2 = {
+        getIncludePaths: jest.fn().mockResolvedValue(['/mock/temp/buf-modules2']),
+        dispose: jest.fn().mockResolvedValue(undefined),
+      };
+
+      await parseProtoDirectory('./fixtures/api/common/v1', {
+        moduleProviders: [mockModuleProvider, mockProvider2],
+      });
+
+      expect(mockModuleProvider.dispose).toHaveBeenCalledTimes(1);
+      expect(mockProvider2.dispose).toHaveBeenCalledTimes(1);
+    });
+
+    it('should dispose module providers even if parsing fails', async () => {
+      const mockProvider = {
+        getIncludePaths: jest.fn().mockResolvedValue([]),
+        dispose: jest.fn().mockResolvedValue(undefined),
+      };
+
+      await expect(
+        parseProtoDirectory('./non-existent-directory', {
+          moduleProviders: [mockProvider],
+        }),
+      ).rejects.toThrow();
+
+      expect(mockProvider.dispose).toHaveBeenCalledTimes(1);
+    });
+
+    it('should handle module provider errors gracefully', async () => {
+      const failingProvider = {
+        getIncludePaths: jest.fn().mockRejectedValue(new Error('Failed to get include paths')),
+        dispose: jest.fn().mockResolvedValue(undefined),
+      };
+
+      await expect(
+        parseProtoDirectory('./fixtures/api/common/v1', {
+          moduleProviders: [failingProvider],
+        }),
+      ).rejects.toThrow('Failed to get include paths');
+
+      expect(failingProvider.dispose).toHaveBeenCalledTimes(1);
+    });
+
+    it('should merge module provider paths with existing include paths', async () => {
+      // This test verifies the integration works but doesn't deeply test path resolution
+      // since that would require complex mocking of the import resolver
+      const protoSet = await parseProtoDirectory('./fixtures/api/common/v1', {
+        includePaths: ['/existing/path'],
+        moduleProviders: [mockModuleProvider],
+      });
+
+      expect(mockModuleProvider.getIncludePaths).toHaveBeenCalled();
+      expect(protoSet.size()).toBeGreaterThan(0);
+    });
+  });
 });
 
 describe('ProtoSet.from static methods', () => {
@@ -556,7 +638,7 @@ describe('ProtoSet - generateSupersetIdl', () => {
     expect(emptyMatches).toBe(1);
   });
 
-  it('should format field rules correctly', () => {
+  it('should format field rules correctly for proto3', () => {
     const protoWithFieldRules: Proto = {
       file: 'rules.proto',
       path: '/test/rules.proto',
@@ -576,8 +658,38 @@ describe('ProtoSet - generateSupersetIdl', () => {
     };
 
     const rulesSet = new ProtoSet([protoWithFieldRules]);
-    const idl = rulesSet.generateSupersetIdl();
+    const idl = rulesSet.generateSupersetIdl({ syntax: 'proto3' });
 
+    // In proto3, only repeated rule is included, optional/required are omitted
+    expect(idl).toContain('string required_field = 1;');
+    expect(idl).toContain('string optional_field = 2;');
+    expect(idl).toContain('repeated string repeated_field = 3;');
+    expect(idl).toContain('string no_rule_field = 4;');
+  });
+
+  it('should format field rules correctly for proto2', () => {
+    const protoWithFieldRules: Proto = {
+      file: 'rules.proto',
+      path: '/test/rules.proto',
+      idl: '',
+      messages: [
+        {
+          name: 'TestRules',
+          namespace: '',
+          fields: [
+            { name: 'required_field', type: 'string', number: 1, rule: 'required' },
+            { name: 'optional_field', type: 'string', number: 2, rule: 'optional' },
+            { name: 'repeated_field', type: 'string', number: 3, rule: 'repeated' },
+            { name: 'no_rule_field', type: 'string', number: 4 },
+          ],
+        },
+      ],
+    };
+
+    const rulesSet = new ProtoSet([protoWithFieldRules]);
+    const idl = rulesSet.generateSupersetIdl({ syntax: 'proto2' });
+
+    // In proto2, all field rules are included
     expect(idl).toContain('required string required_field = 1;');
     expect(idl).toContain('optional string optional_field = 2;');
     expect(idl).toContain('repeated string repeated_field = 3;');

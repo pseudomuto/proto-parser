@@ -241,12 +241,27 @@ const parseProtoContent = async (
  * @since 0.1.0
  */
 export const parseProto = async (input: string, options: ParseOptions = {}): Promise<Proto> => {
+  const providers = options.moduleProviders || [];
+
   try {
-    const fileSystem = options.fileSystem || new DefaultFileSystem();
+    // Get include paths from module providers
+    const moduleIncludePaths: string[] = [];
+    for (const provider of providers) {
+      const paths = await provider.getIncludePaths();
+      moduleIncludePaths.push(...paths);
+    }
+
+    // Merge with existing include paths (module paths first for priority)
+    const enhancedOptions = {
+      ...options,
+      includePaths: [...moduleIncludePaths, ...(options.includePaths || [])],
+    };
+
+    const fileSystem = enhancedOptions.fileSystem || new DefaultFileSystem();
     const protoPath = await fileSystem.filePathIfExists(input);
     const protoDir = getProtoDirectory(protoPath);
     const baseDir = protoPath ? protoDir : process.cwd();
-    const resolvedOptions = createDefaultParseOptions(baseDir, { ...options, fileSystem });
+    const resolvedOptions = createDefaultParseOptions(baseDir, { ...enhancedOptions, fileSystem });
 
     const { root, parsed, content, protoPath: finalProtoPath } = await parseProtoContent(input, resolvedOptions);
 
@@ -255,6 +270,9 @@ export const parseProto = async (input: string, options: ParseOptions = {}): Pro
     return buildProtoResult(root, finalProtoPath, content, parsed, resolvedOptions.contentProcessor);
   } catch (error) {
     throw new Error(`Failed to parse proto: ${error instanceof Error ? error.message : String(error)}`);
+  } finally {
+    // Cleanup all providers
+    await Promise.all(providers.map(p => p.dispose()));
   }
 };
 
@@ -322,93 +340,108 @@ const findProtoFiles = async (
 export const parseProtoDirectory = async (dirPath: string, options: DirectoryParseOptions = {}): Promise<ProtoSet> => {
   const { recursive = true, ...parseOptions } = options;
   const fileSystem = options.fileSystem || new DefaultFileSystem();
+  const providers = parseOptions.moduleProviders || [];
 
-  // Validate directory exists
-  const resolvedDirPath = path.resolve(dirPath);
   try {
-    const stats = await fileSystem.stat(resolvedDirPath);
-    if (!stats.isDirectory()) {
-      throw new Error(`Path is not a directory: ${dirPath}`);
+    // Get include paths from module providers
+    const moduleIncludePaths: string[] = [];
+    for (const provider of providers) {
+      const paths = await provider.getIncludePaths();
+      moduleIncludePaths.push(...paths);
     }
-  } catch (error) {
-    const nodeError = error as NodeJS.ErrnoException;
-    if (nodeError.code === 'ENOENT') {
-      throw new Error(`Directory not found: ${dirPath}`);
-    } else if (nodeError.code === 'EACCES') {
-      throw new Error(`Permission denied accessing directory: ${dirPath}`);
-    } else {
-      throw new Error(`Cannot access directory: ${dirPath} (${nodeError.message || String(error)})`);
-    }
-  }
 
-  // Find all proto files
-  const protoFilePaths = await findProtoFiles(resolvedDirPath, fileSystem, recursive);
-
-  if (protoFilePaths.length === 0) {
-    return new ProtoSet([]);
-  }
-
-  // Add the directory and its parent directories to include paths to resolve imports between files
-  // This helps resolve imports that use relative paths from the project root
-  const parentDirs = [];
-  let currentDir = resolvedDirPath;
-  while (currentDir !== path.dirname(currentDir)) {
-    parentDirs.push(currentDir);
-    currentDir = path.dirname(currentDir);
-  }
-
-  const enhancedOptions: ParseOptions = {
-    ...parseOptions,
-    fileSystem,
-    includePaths: [...parentDirs, ...(parseOptions.includePaths || [])],
-  };
-
-  // Parse all proto files and collect imported protos
-  const protos: Proto[] = [];
-  const allImportedProtos = new Map<string, Proto>(); // Use Map to deduplicate by path
-  const errors: string[] = [];
-
-  for (const filePath of protoFilePaths) {
+    // Validate directory exists
+    const resolvedDirPath = path.resolve(dirPath);
     try {
-      const resolvedOptions = createDefaultParseOptions(resolvedDirPath, { ...enhancedOptions, fileSystem });
-      const {
-        root,
-        parsed,
-        content,
-        protoPath: finalProtoPath,
-        importedProtos,
-      } = await parseProtoContent(filePath, resolvedOptions);
-
-      // Add the main proto - use current file only version for proper separation
-      const mainProto = buildProtoResultCurrentFileOnly(
-        root,
-        finalProtoPath,
-        content,
-        parsed,
-        resolvedOptions.contentProcessor,
-        resolvedOptions.keepCase,
-      );
-      protos.push(mainProto);
-
-      // Collect imported protos (deduplicated by path)
-      for (const importedProto of importedProtos) {
-        if (!allImportedProtos.has(importedProto.path)) {
-          allImportedProtos.set(importedProto.path, importedProto);
-        }
+      const stats = await fileSystem.stat(resolvedDirPath);
+      if (!stats.isDirectory()) {
+        throw new Error(`Path is not a directory: ${dirPath}`);
       }
     } catch (error) {
-      errors.push(`Failed to parse ${filePath}: ${error instanceof Error ? error.message : String(error)}`);
+      const nodeError = error as NodeJS.ErrnoException;
+      if (nodeError.code === 'ENOENT') {
+        throw new Error(`Directory not found: ${dirPath}`);
+      } else if (nodeError.code === 'EACCES') {
+        throw new Error(`Permission denied accessing directory: ${dirPath}`);
+      } else {
+        throw new Error(`Cannot access directory: ${dirPath} (${nodeError.message || String(error)})`);
+      }
     }
+
+    // Find all proto files
+    const protoFilePaths = await findProtoFiles(resolvedDirPath, fileSystem, recursive);
+
+    if (protoFilePaths.length === 0) {
+      return new ProtoSet([]);
+    }
+
+    // Add the directory and its parent directories to include paths to resolve imports between files
+    // This helps resolve imports that use relative paths from the project root
+    const parentDirs = [];
+    let currentDir = resolvedDirPath;
+    while (currentDir !== path.dirname(currentDir)) {
+      parentDirs.push(currentDir);
+      currentDir = path.dirname(currentDir);
+    }
+
+    const enhancedOptions: ParseOptions = {
+      ...parseOptions,
+      fileSystem,
+      includePaths: [...moduleIncludePaths, ...parentDirs, ...(parseOptions.includePaths || [])],
+    };
+
+    // Parse all proto files and collect imported protos
+    const protos: Proto[] = [];
+    const allImportedProtos = new Map<string, Proto>(); // Use Map to deduplicate by path
+    const errors: string[] = [];
+
+    for (const filePath of protoFilePaths) {
+      try {
+        const resolvedOptions = createDefaultParseOptions(resolvedDirPath, { ...enhancedOptions, fileSystem });
+        const {
+          root,
+          parsed,
+          content,
+          protoPath: finalProtoPath,
+          importedProtos,
+        } = await parseProtoContent(filePath, resolvedOptions);
+
+        // Add the main proto - use current file only version for proper separation
+        const mainProto = buildProtoResultCurrentFileOnly(
+          root,
+          finalProtoPath,
+          content,
+          parsed,
+          resolvedOptions.contentProcessor,
+          resolvedOptions.keepCase,
+        );
+        protos.push(mainProto);
+
+        // Collect imported protos (deduplicated by path)
+        for (const importedProto of importedProtos) {
+          if (!allImportedProtos.has(importedProto.path)) {
+            allImportedProtos.set(importedProto.path, importedProto);
+          }
+        }
+      } catch (error) {
+        errors.push(`Failed to parse ${filePath}: ${error instanceof Error ? error.message : String(error)}`);
+      }
+    }
+
+    // Add all imported protos to the main protos array
+    protos.push(...allImportedProtos.values());
+
+    if (errors.length > 0 && protos.length === 0) {
+      throw new Error(`Failed to parse any proto files:\n${errors.join('\n')}`);
+    }
+    // Note: If there are partial failures, they are tracked in the errors array
+    // but we continue with the successfully parsed files
+
+    return new ProtoSet(protos);
+  } catch (error) {
+    throw new Error(`Failed to parse proto directory: ${error instanceof Error ? error.message : String(error)}`);
+  } finally {
+    // Cleanup all providers
+    await Promise.all(providers.map(p => p.dispose()));
   }
-
-  // Add all imported protos to the main protos array
-  protos.push(...allImportedProtos.values());
-
-  if (errors.length > 0 && protos.length === 0) {
-    throw new Error(`Failed to parse any proto files:\n${errors.join('\n')}`);
-  }
-  // Note: If there are partial failures, they are tracked in the errors array
-  // but we continue with the successfully parsed files
-
-  return new ProtoSet(protos);
 };

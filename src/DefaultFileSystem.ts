@@ -49,7 +49,7 @@ export class DefaultFileSystem implements FileSystem {
    * @param options Options including recursive removal
    */
   async rmdir(path: string, options?: { recursive?: boolean }): Promise<void> {
-    await fs.promises.rmdir(path, options);
+    await fs.promises.rm(path, options);
   }
 
   /**

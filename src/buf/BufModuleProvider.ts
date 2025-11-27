@@ -5,14 +5,14 @@ import { pipeline } from 'stream/promises';
 import * as zlib from 'zlib';
 
 import { DefaultFileSystem } from '../DefaultFileSystem';
-import { FileSystem } from '../types';
+import { FileSystem, ModuleProvider } from '../types';
 import { TarExtractStream } from './TarExtractStream';
 import { ModuleCoordinate, ModuleCoordinateError, parseModuleCoordinate } from './moduleCoordinate';
 
 /**
- * Error thrown when Buf module resolution fails.
+ * Error thrown when Buf module provider operations fail.
  */
-export class BufResolverError extends Error {
+export class BufModuleProviderError extends Error {
   constructor(
     message: string,
     /** HTTP status code if available */
@@ -21,14 +21,14 @@ export class BufResolverError extends Error {
     public readonly module?: string,
   ) {
     super(message);
-    this.name = 'BufResolverError';
+    this.name = 'BufModuleProviderError';
   }
 }
 
 /**
- * Options for configuring the BufResolver.
+ * Options for configuring the BufModuleProvider.
  */
-export interface BufResolverOptions {
+export interface BufModuleProviderOptions {
   /** Optional Buf API token for authenticated requests to private modules */
   bufToken?: string;
   /** Base directory for temporary files (defaults to OS temp directory) */
@@ -42,7 +42,7 @@ export interface BufResolverOptions {
 }
 
 /**
- * Resolver that preloads Buf modules by downloading their raw proto files
+ * Module provider that preloads Buf modules by downloading their raw proto files
  * as archives and extracting them to temporary directories.
  *
  * This approach provides superior performance and type resolution
@@ -50,14 +50,14 @@ export interface BufResolverOptions {
  *
  * @example
  * ```typescript
- * const resolver = new BufResolver([
+ * const provider = new BufModuleProvider([
  *   'buf.build/bufbuild/protovalidate:v1.0.0',
  *   'buf.build/googleapis/googleapis'
  * ], {
  *   includeWKTs: true // Automatically includes well-known types (default)
  * });
  *
- * const tempDirs = await resolver.preloadModules();
+ * const tempDirs = await provider.getIncludePaths();
  *
  * // Use with existing ImportResolver
  * const importResolver = new DefaultImportResolver(baseDir, fileSystem, {
@@ -65,19 +65,19 @@ export interface BufResolverOptions {
  * });
  *
  * // Clean up when done
- * await resolver.cleanup();
+ * await provider.dispose();
  * ```
  *
  * @public
  * @since 0.3.0
  */
-export class BufResolver {
+export class BufModuleProvider implements ModuleProvider {
   #modules: string[];
-  #options: Required<BufResolverOptions>;
+  #options: Required<BufModuleProviderOptions>;
   #fileSystem: FileSystem;
   #tempDirs: string[] = [];
 
-  constructor(modules: string[], options: BufResolverOptions = {}) {
+  constructor(modules: string[], options: BufModuleProviderOptions = {}) {
     const includeWKTs = options.includeWKTs ?? true;
 
     // Automatically include well-known types if requested and not already present
@@ -90,18 +90,24 @@ export class BufResolver {
       fileSystem: this.#fileSystem,
       includeDependencies: options.includeDependencies ?? true,
       includeWKTs,
-    } as Required<BufResolverOptions>;
+    } as Required<BufModuleProviderOptions>;
   }
 
   /**
-   * Downloads and extracts all specified modules to temporary directories.
+   * Get include paths containing module proto files.
+   * This method is idempotent - it will only download modules once.
    *
-   * @returns Array of temporary directory paths containing the extracted proto files
-   * @throws {BufResolverError} When module download or extraction fails
+   * @returns Array of directory paths containing the extracted proto files
+   * @throws {BufModuleProviderError} When module download or extraction fails
    */
-  async preloadModules(): Promise<string[]> {
-    const tempDirs: string[] = [];
+  async getIncludePaths(): Promise<string[]> {
+    // If already downloaded, return existing paths
+    if (this.#tempDirs.length > 0) {
+      return [...this.#tempDirs];
+    }
 
+    // Download and extract modules
+    const tempDirs: string[] = [];
     for (const moduleCoord of this.#modules) {
       const coordinate = this.parseModuleCoordinate(moduleCoord);
       const tempDir = await this.downloadAndExtractModule(coordinate);
@@ -109,13 +115,13 @@ export class BufResolver {
     }
 
     this.#tempDirs = tempDirs;
-    return tempDirs;
+    return [...tempDirs];
   }
 
   /**
-   * Cleans up all temporary directories created by this resolver.
+   * Clean up all temporary directories created by this provider.
    */
-  async cleanup(): Promise<void> {
+  async dispose(): Promise<void> {
     for (const tempDir of this.#tempDirs) {
       try {
         await this.#fileSystem.rmdir(tempDir, { recursive: true });
@@ -185,14 +191,14 @@ export class BufResolver {
    *
    * @param coordinate Module coordinate (e.g., "buf.build/bufbuild/protovalidate:v1.0.0")
    * @returns Parsed coordinate components
-   * @throws {BufResolverError} When coordinate format is invalid
+   * @throws {BufModuleProviderError} When coordinate format is invalid
    */
   private parseModuleCoordinate(coordinate: string): ModuleCoordinate {
     try {
       return parseModuleCoordinate(coordinate);
     } catch (error) {
       if (error instanceof ModuleCoordinateError) {
-        throw new BufResolverError(`Invalid module coordinate: ${error.message}`, undefined, error.coordinate);
+        throw new BufModuleProviderError(`Invalid module coordinate: ${error.message}`, undefined, error.coordinate);
       }
       throw error;
     }
@@ -203,13 +209,13 @@ export class BufResolver {
    *
    * @param coordinate Parsed module coordinate
    * @returns Path to temporary directory containing extracted files
-   * @throws {BufResolverError} When download or extraction fails
+   * @throws {BufModuleProviderError} When download or extraction fails
    */
   private async downloadAndExtractModule(coordinate: ModuleCoordinate): Promise<string> {
     // Create unique temporary directory
     const tempDir = path.join(
       this.#options.tempDir,
-      `.buf-resolver-${coordinate.owner}-${coordinate.name}-${Date.now()}-${Math.random().toString(36).slice(2)}`,
+      `.buf-module-provider-${coordinate.owner}-${coordinate.name}-${Date.now()}-${Math.random().toString(36).slice(2)}`,
     );
 
     try {
@@ -231,11 +237,11 @@ export class BufResolver {
         // Ignore cleanup errors
       }
 
-      if (error instanceof BufResolverError) {
+      if (error instanceof BufModuleProviderError) {
         throw error;
       }
 
-      throw new BufResolverError(
+      throw new BufModuleProviderError(
         `Failed to download and extract module: ${error}`,
         undefined,
         `${coordinate.instance}/${coordinate.owner}/${coordinate.name}`,
@@ -268,11 +274,11 @@ export class BufResolver {
    * @param url Archive download URL
    * @param coordinate Module coordinate for error context
    * @returns Archive content as Buffer
-   * @throws {BufResolverError} When download fails
+   * @throws {BufModuleProviderError} When download fails
    */
   private async downloadArchive(url: string, coordinate: ModuleCoordinate): Promise<Buffer> {
     const headers: Record<string, string> = {
-      'User-Agent': '@pseudomutojs/proto-parser BufResolver',
+      'User-Agent': '@pseudomutojs/proto-parser BufModuleProvider',
     };
 
     if (this.#options.bufToken) {
@@ -283,7 +289,7 @@ export class BufResolver {
       const response = await fetch(url, { headers });
 
       if (!response.ok) {
-        throw new BufResolverError(
+        throw new BufModuleProviderError(
           `Failed to download module archive: ${response.status} ${response.statusText}`,
           response.status,
           `${coordinate.instance}/${coordinate.owner}/${coordinate.name}`,
@@ -293,11 +299,11 @@ export class BufResolver {
       const arrayBuffer = await response.arrayBuffer();
       return Buffer.from(arrayBuffer);
     } catch (error) {
-      if (error instanceof BufResolverError) {
+      if (error instanceof BufModuleProviderError) {
         throw error;
       }
 
-      throw new BufResolverError(
+      throw new BufModuleProviderError(
         `Network error downloading module: ${error}`,
         undefined,
         `${coordinate.instance}/${coordinate.owner}/${coordinate.name}`,
@@ -311,7 +317,7 @@ export class BufResolver {
    *
    * @param tarGzBuffer Compressed archive buffer
    * @param targetDir Directory to extract files to
-   * @throws {BufResolverError} When extraction fails
+   * @throws {BufModuleProviderError} When extraction fails
    */
   private async extractTarGz(tarGzBuffer: Buffer, targetDir: string): Promise<void> {
     try {
@@ -327,7 +333,7 @@ export class BufResolver {
       // Pipeline: buffer -> gunzip -> tar parser
       await pipeline(bufferStream, gunzip, tarParser);
     } catch (error) {
-      throw new BufResolverError(`Failed to extract archive: ${error}`);
+      throw new BufModuleProviderError(`Failed to extract archive: ${error}`);
     }
   }
 }
