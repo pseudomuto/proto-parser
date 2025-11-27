@@ -32,4 +32,7 @@ module.exports = {
 
   // Test match patterns
   testMatch: ['**/*.test.ts'],
+
+  // Setup files to configure test environment
+  setupFilesAfterEnv: ['<rootDir>/jest.setup.js'],
 };

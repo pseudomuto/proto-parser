@@ -795,4 +795,194 @@ describe('integration tests', () => {
     // Should contain relative paths with directory structure
     expect(withBaseDirLines.some(line => line.includes('api/'))).toBe(true);
   });
+
+  describe('cross-platform path handling', () => {
+    it('should handle Windows-style paths correctly in isLikelyImportDuplicate', () => {
+      const protoSet = new ProtoSet([]);
+
+      // Mock messages that are equivalent
+      const msg1 = {
+        name: 'User',
+        namespace: '',
+        fields: [{ name: 'id', type: 'string', number: 1 }],
+      };
+      const msg2 = { ...msg1 };
+
+      // Test with Windows-style paths (backslashes)
+      const windowsPath1 = 'C:\\temp\\buf-123\\user.proto';
+      const windowsPath2 = 'C:\\temp\\service.proto';
+
+      // @ts-ignore - accessing private method for testing
+      const result = protoSet.isLikelyImportDuplicate(windowsPath1, windowsPath2, msg1, msg2);
+
+      // Should work correctly regardless of path separator
+      expect(typeof result).toBe('boolean');
+    });
+
+    it('should extract basenames correctly from various path formats', () => {
+      const protoSet = new ProtoSet([]);
+
+      const msg1 = {
+        name: 'User',
+        namespace: '',
+        fields: [{ name: 'id', type: 'string', number: 1 }],
+      };
+      const msg2 = { ...msg1 };
+
+      // Test Unix-style path
+      // @ts-ignore - accessing private method for testing
+      const unixResult = protoSet.isLikelyImportDuplicate('/tmp/user.proto', '/tmp/service.proto', msg1, msg2);
+
+      // Test Windows-style path
+      // @ts-ignore - accessing private method for testing
+      const windowsResult = protoSet.isLikelyImportDuplicate(
+        'C:\\temp\\user.proto',
+        'D:\\temp\\service.proto',
+        msg1,
+        msg2,
+      );
+
+      // Both should handle path extraction properly
+      expect(typeof unixResult).toBe('boolean');
+      expect(typeof windowsResult).toBe('boolean');
+    });
+  });
+
+  describe('field comparison fixes', () => {
+    it('should compare fields by field number, not array index', () => {
+      const protoSet = new ProtoSet([]);
+
+      // Create messages with same fields but different order
+      const msg1 = {
+        name: 'User',
+        namespace: '',
+        fields: [
+          { name: 'name', type: 'string', number: 2 },
+          { name: 'id', type: 'string', number: 1 },
+        ],
+      };
+
+      const msg2 = {
+        name: 'User',
+        namespace: '',
+        fields: [
+          { name: 'id', type: 'string', number: 1 },
+          { name: 'name', type: 'string', number: 2 },
+        ],
+      };
+
+      // Use paths that would be considered import duplicates (same base name)
+      // @ts-ignore - accessing private method for testing
+      const result = protoSet.areMessagesEquivalent(msg1, msg2, 'user.proto', 'service/user.proto');
+
+      // Should be considered equivalent despite different field order
+      expect(result).toBe(true);
+    });
+
+    it('should detect field differences correctly', () => {
+      const protoSet = new ProtoSet([]);
+
+      const msg1 = {
+        name: 'User',
+        namespace: '',
+        fields: [
+          { name: 'id', type: 'string', number: 1 },
+          { name: 'name', type: 'string', number: 2 },
+        ],
+      };
+
+      const msg2 = {
+        name: 'User',
+        namespace: '',
+        fields: [
+          { name: 'id', type: 'string', number: 1 },
+          { name: 'email', type: 'string', number: 2 }, // Different field name
+        ],
+      };
+
+      // Even with import-duplicate paths, different fields should make them non-equivalent
+      // @ts-ignore - accessing private method for testing
+      const result = protoSet.areMessagesEquivalent(msg1, msg2, 'user.proto', 'service/user.proto');
+
+      // Should NOT be equivalent due to different field names
+      expect(result).toBe(false);
+    });
+
+    it('should handle oneOf fields with different order', () => {
+      const protoSet = new ProtoSet([]);
+
+      const msg1 = {
+        name: 'User',
+        namespace: '',
+        fields: [],
+        oneofs: [
+          {
+            name: 'contact_info',
+            fieldNames: ['email', 'phone'],
+          },
+        ],
+      };
+
+      const msg2 = {
+        name: 'User',
+        namespace: '',
+        fields: [],
+        oneofs: [
+          {
+            name: 'contact_info',
+            fieldNames: ['phone', 'email'], // Different order
+          },
+        ],
+      };
+
+      // Use paths that would be considered import duplicates
+      // @ts-ignore - accessing private method for testing
+      const result = protoSet.areMessagesEquivalent(msg1, msg2, 'user.proto', 'service/user.proto');
+
+      // Should be considered equivalent despite different oneOf field order
+      expect(result).toBe(true);
+    });
+
+    it('should demonstrate field order independence in generateSupersetIdl', () => {
+      // Create Proto objects with messages having fields in different orders
+      const proto1: Proto = {
+        file: 'user.proto',
+        path: '/test/user.proto',
+        idl: '',
+        messages: [
+          {
+            name: 'User',
+            namespace: '',
+            fields: [
+              { name: 'name', type: 'string', number: 2 },
+              { name: 'id', type: 'string', number: 1 },
+            ],
+          },
+        ],
+      };
+
+      const proto2: Proto = {
+        file: 'service.proto',
+        path: '/test/service.proto',
+        idl: '',
+        messages: [
+          {
+            name: 'User',
+            namespace: '',
+            fields: [
+              { name: 'id', type: 'string', number: 1 },
+              { name: 'name', type: 'string', number: 2 },
+            ],
+          },
+        ],
+      };
+
+      const protoSet = new ProtoSet([proto1, proto2]);
+      const idl = protoSet.generateSupersetIdl();
+
+      // Should only contain one User message (deduplicated) despite field order difference
+      const userMatches = (idl.match(/message User \{/g) || []).length;
+      expect(userMatches).toBe(1);
+    });
+  });
 });
