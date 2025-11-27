@@ -31,7 +31,7 @@
     "lint": "eslint . --ext .js,.ts",
     "fix": "eslint . --ext .js,.ts --fix",
     "test": "jest --watch",
-    "test:ci": "jest",
+    "test:ci": "CI=true jest",
     "prepare": "husky",
     "prepublishOnly": "npm run test:ci && npm run lint && npm run build",
     "release": "bash scripts/release.sh"

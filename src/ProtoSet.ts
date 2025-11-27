@@ -452,6 +452,7 @@ export class ProtoSet {
           const segment = pathSegments[i];
           if (importPathPatterns.some(pattern => segment.startsWith(pattern))) {
             // Found a pattern, return everything from this segment onwards
+            // Proto import paths conventionally use forward slashes, regardless of platform
             return pathSegments.slice(i).join('/');
           }
         }
@@ -828,34 +829,70 @@ export class ProtoSet {
       return false;
     }
 
-    // Compare each field
-    for (let i = 0; i < fields1.length; i++) {
-      const field1 = fields1[i];
-      const field2 = fields2[i];
+    // Compare fields by field number, not array index
+    const fieldsByNumber1 = new Map<number, Field>();
+    for (const field of fields1) {
+      fieldsByNumber1.set(field.number, field);
+    }
+    const fieldsByNumber2 = new Map<number, Field>();
+    for (const field of fields2) {
+      fieldsByNumber2.set(field.number, field);
+    }
 
-      if (
-        field1.name !== field2.name ||
-        field1.type !== field2.type ||
-        field1.number !== field2.number ||
-        field1.rule !== field2.rule
-      ) {
+    // Check that both have the same field numbers
+    if (fieldsByNumber1.size !== fieldsByNumber2.size) {
+      return false;
+    }
+
+    for (const [number, field1] of fieldsByNumber1.entries()) {
+      const field2 = fieldsByNumber2.get(number);
+      if (!field2) {
+        return false;
+      }
+
+      if (field1.name !== field2.name || field1.type !== field2.type || field1.rule !== field2.rule) {
         return false;
       }
     }
 
-    // Compare oneOf fields
+    // Compare oneOf fields by name, not array index
     const oneOfs1 = msg1.oneofs || [];
     const oneOfs2 = msg2.oneofs || [];
     if (oneOfs1.length !== oneOfs2.length) {
       return false;
     }
 
-    for (let i = 0; i < oneOfs1.length; i++) {
-      const oneOf1 = oneOfs1[i];
-      const oneOf2 = oneOfs2[i];
+    const oneOfsByName1 = new Map<string, OneOf>();
+    for (const oneOf of oneOfs1) {
+      oneOfsByName1.set(oneOf.name, oneOf);
+    }
+    const oneOfsByName2 = new Map<string, OneOf>();
+    for (const oneOf of oneOfs2) {
+      oneOfsByName2.set(oneOf.name, oneOf);
+    }
 
-      if (oneOf1.name !== oneOf2.name || (oneOf1.fieldNames?.length || 0) !== (oneOf2.fieldNames?.length || 0)) {
+    for (const [name, oneOf1] of oneOfsByName1.entries()) {
+      const oneOf2 = oneOfsByName2.get(name);
+      if (!oneOf2) {
         return false;
+      }
+
+      if ((oneOf1.fieldNames?.length || 0) !== (oneOf2.fieldNames?.length || 0)) {
+        return false;
+      }
+
+      // Compare field names in oneOf (order shouldn't matter for equivalence)
+      const fieldNames1 = new Set(oneOf1.fieldNames || []);
+      const fieldNames2 = new Set(oneOf2.fieldNames || []);
+
+      if (fieldNames1.size !== fieldNames2.size) {
+        return false;
+      }
+
+      for (const fieldName of fieldNames1) {
+        if (!fieldNames2.has(fieldName)) {
+          return false;
+        }
       }
     }
 
@@ -878,8 +915,8 @@ export class ProtoSet {
     }
 
     // If both have the same base filename, they're likely the same proto file
-    const baseName1 = displayPath1.split('/').pop()?.replace('.proto', '');
-    const baseName2 = displayPath2.split('/').pop()?.replace('.proto', '');
+    const baseName1 = path.basename(displayPath1).replace('.proto', '');
+    const baseName2 = path.basename(displayPath2).replace('.proto', '');
     if (baseName1 && baseName2 && baseName1 === baseName2) {
       return true;
     }

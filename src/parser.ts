@@ -109,8 +109,10 @@ const buildProtoResultWithoutResolve = (
       enums: enums.length > 0 ? enums : undefined,
       imports: parsed.imports,
     };
-  } catch {
+  } catch (err) {
     // If we still can't collect definitions, return null
+    // Log the error for debugging purposes
+    console.debug('Failed to collect proto definitions in buildProtoResultWithoutResolve:', err);
     return null;
   }
 };
@@ -172,8 +174,9 @@ const parseProtoContent = async (
                 resolvedOptions.contentProcessor,
               );
               importedProtos.push(importedProto);
-            } catch {
+            } catch (err) {
               // If buildProtoResult fails due to unresolvable extensions, create a basic proto object without resolving
+              console.debug(`Failed to build proto result for "${resolvedPath}", attempting without resolve:`, err);
               const basicImportedProto = buildProtoResultWithoutResolve(
                 cleanRoot,
                 resolvedPath,
@@ -185,13 +188,16 @@ const parseProtoContent = async (
                 importedProtos.push(basicImportedProto);
               }
             }
-          } catch {
+          } catch (err) {
             // If we can't read the imported file (e.g., WKTs from protobufjs), skip creating a Proto object
             // The import is still loaded into the root for type resolution
+            console.debug(`Failed to read imported file "${resolvedPath}":`, err);
           }
         }
-      } catch {
+      } catch (err) {
         // Import failed, but continue with main parsing
+        // Log at debug level for troubleshooting
+        console.debug(`Failed to import proto file "${importPath}":`, err);
       }
     }
   }
