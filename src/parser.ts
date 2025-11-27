@@ -2,12 +2,12 @@ import * as fs from 'fs';
 import * as path from 'path';
 import * as protobuf from 'protobufjs';
 
-import { DefaultFileSystem } from './DefaultFileSystem';
 import { ProtoSet } from './ProtoSet';
 import { createDefaultParseOptions } from './defaults';
 import { ProtoBuildError, ProtoParseError, getErrorMessage, isNodeError } from './errors';
 import { collectProtoDefinitions } from './proto';
-import { DirectoryParseOptions, FileSystem, IProtoParser, ParseOptions, Proto, ResolvedParseOptions } from './types';
+import { FileSystem } from './sys';
+import { DirectoryParseOptions, IFileSystem, IProtoParser, ParseOptions, Proto, ResolvedParseOptions } from './types';
 import { getProtoDirectory } from './utils';
 import { isWellKnownType } from './utils/wellKnownTypes';
 
@@ -297,7 +297,7 @@ export const parseProto = async (input: string, options: ParseOptions = {}): Pro
       includePaths: [...moduleIncludePaths, ...(options.includePaths || [])],
     };
 
-    const fileSystem = enhancedOptions.fileSystem || new DefaultFileSystem();
+    const fileSystem = enhancedOptions.fileSystem || new FileSystem();
     protoPath = await fileSystem.filePathIfExists(input);
     const protoDir = getProtoDirectory(protoPath);
     const baseDir = protoPath ? protoDir : process.cwd();
@@ -326,7 +326,7 @@ export const parseProto = async (input: string, options: ParseOptions = {}): Pro
  */
 const findProtoFiles = async (
   dirPath: string,
-  fileSystem: FileSystem,
+  fileSystem: IFileSystem,
   recursive: boolean = true,
 ): Promise<string[]> => {
   const protoFiles: string[] = [];
@@ -383,7 +383,7 @@ const findProtoFiles = async (
  */
 export const parseProtoDirectory = async (dirPath: string, options: DirectoryParseOptions = {}): Promise<ProtoSet> => {
   const { recursive = true, ...parseOptions } = options;
-  const fileSystem = options.fileSystem || new DefaultFileSystem();
+  const fileSystem = options.fileSystem || new FileSystem();
   const providers = parseOptions.moduleProviders || [];
 
   try {

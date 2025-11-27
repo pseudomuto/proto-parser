@@ -1,9 +1,9 @@
 import * as path from 'path';
 
-import { DefaultFileSystem } from './DefaultFileSystem';
+import { FileSystem } from './FileSystem';
 
-describe('DefaultFileSystem', () => {
-  let fs: DefaultFileSystem;
+describe('FileSystem', () => {
+  let fs: FileSystem;
   const fixturesDir = path.join(process.cwd(), 'fixtures');
   const userServicePath = path.join(fixturesDir, 'api/user/v1/user_service.proto');
   const nestedPath = path.join(fixturesDir, 'examples/nested_structures.proto');
@@ -18,7 +18,7 @@ message Test {
 }`;
 
   beforeEach(() => {
-    fs = new DefaultFileSystem();
+    fs = new FileSystem();
   });
 
   describe('access', () => {

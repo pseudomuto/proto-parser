@@ -1,7 +1,7 @@
 import * as path from 'path';
 import * as stream from 'stream';
 
-import { FileSystem } from '../types';
+import { IFileSystem } from '../types';
 
 /**
  * Simple tar extraction stream that processes tar file entries.
@@ -13,10 +13,10 @@ import { FileSystem } from '../types';
  */
 export class TarExtractStream extends stream.Writable {
   #targetDir: string;
-  #fileSystem: FileSystem;
+  #fileSystem: IFileSystem;
   #buffer: Buffer = Buffer.alloc(0);
 
-  constructor(targetDir: string, fileSystem: FileSystem) {
+  constructor(targetDir: string, fileSystem: IFileSystem) {
     super();
     this.#targetDir = targetDir;
     this.#fileSystem = fileSystem;

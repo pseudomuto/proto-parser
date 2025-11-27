@@ -1,15 +1,15 @@
 import * as fs from 'fs';
 import * as path from 'path';
 
-import { FileSystem } from './types';
+import { IFileSystem } from './IFileSystem';
 
 /**
- * Default implementation of FileSystem interface using Node.js fs module.
+ * Default implementation of IFileSystem interface using Node.js fs module.
  *
  * @public
  * @since 0.2.0
  */
-export class DefaultFileSystem implements FileSystem {
+export class FileSystem implements IFileSystem {
   /**
    * Check access to a file or directory.
    * Throws an error if the file doesn't exist or isn't accessible.

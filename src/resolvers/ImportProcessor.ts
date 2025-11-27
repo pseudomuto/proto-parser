@@ -1,6 +1,6 @@
 import * as path from 'path';
 
-import { FileSystem, ParseOptions } from '../types';
+import { IFileSystem, ParseOptions } from '../types';
 import { isWellKnownType, resolveWellKnownType } from '../utils/wellKnownTypes';
 import { IImportProcessor } from './IImportProcessor';
 
@@ -13,9 +13,9 @@ export class ImportProcessor implements IImportProcessor {
   readonly #baseDir: string;
   readonly #includePaths: string[];
 
-  protected readonly fileSystem: FileSystem;
+  protected readonly fileSystem: IFileSystem;
 
-  constructor(baseDir: string, fileSystem: FileSystem, options: ParseOptions = {}) {
+  constructor(baseDir: string, fileSystem: IFileSystem, options: ParseOptions = {}) {
     this.#baseDir = baseDir;
     this.fileSystem = fileSystem;
     this.#includePaths = [

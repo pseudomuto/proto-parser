@@ -1,6 +1,6 @@
 import * as path from 'path';
 
-import { FileSystem } from '../types';
+import { IFileSystem } from '../types';
 
 /**
  * Asynchronously resolves the full path of an imported proto file.
@@ -11,7 +11,7 @@ import { FileSystem } from '../types';
  * @param importPath - The import path from the proto file
  * @param baseDir - The directory containing the importing proto file
  * @param includePaths - Additional directories to search for imports
- * @param fileSystem - FileSystem implementation for file operations
+ * @param fileSystem - IFileSystem implementation for file operations
  * @returns Promise that resolves to the full path of the import, or null if not found
  *
  * @public
@@ -21,7 +21,7 @@ export const resolveImport = async (
   importPath: string,
   baseDir: string,
   includePaths: string[] = [],
-  fileSystem: FileSystem,
+  fileSystem: IFileSystem,
 ): Promise<string | null> => {
   const searchPaths = [
     baseDir,

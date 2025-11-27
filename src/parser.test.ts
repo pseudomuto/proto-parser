@@ -1,7 +1,7 @@
 import * as path from 'path';
 
-import { DefaultFileSystem } from './DefaultFileSystem';
 import { parseProto } from './parser';
+import { FileSystem } from './sys';
 
 /**
  * Integration tests for the parseProto function.
@@ -37,7 +37,7 @@ describe('parseProto', () => {
     });
 
     test('should parse proto from string content', async () => {
-      const fileSystem = new DefaultFileSystem();
+      const fileSystem = new FileSystem();
       const content = await fileSystem.readFile(userServicePath, 'utf-8');
       const result = await parseProto(content, { includePaths });
 
@@ -346,7 +346,7 @@ describe('parseProto', () => {
     });
 
     test('should work with content strings and module providers', async () => {
-      const fileSystem = new DefaultFileSystem();
+      const fileSystem = new FileSystem();
       const content = await fileSystem.readFile(userPath, 'utf-8');
 
       const result = await parseProto(content, {
@@ -414,7 +414,7 @@ describe('parseProto', () => {
     });
 
     test('should resolve absolute path imports if they exist', async () => {
-      const fileSystem = new DefaultFileSystem();
+      const fileSystem = new FileSystem();
       const absolutePath = path.resolve(userPath);
 
       // Create a proto that imports using absolute path
