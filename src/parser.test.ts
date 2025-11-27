@@ -272,4 +272,101 @@ describe('parseProto', () => {
       );
     });
   });
+
+  describe('with moduleProviders', () => {
+    let mockModuleProvider: any;
+
+    beforeEach(() => {
+      mockModuleProvider = {
+        getIncludePaths: jest.fn().mockResolvedValue(['/mock/temp/buf-modules']),
+        dispose: jest.fn().mockResolvedValue(undefined),
+      };
+    });
+
+    test('should call getIncludePaths on all module providers', async () => {
+      const mockProvider2 = {
+        getIncludePaths: jest.fn().mockResolvedValue(['/mock/temp/buf-modules2']),
+        dispose: jest.fn().mockResolvedValue(undefined),
+      };
+
+      const result = await parseProto(userServicePath, {
+        includePaths,
+        moduleProviders: [mockModuleProvider, mockProvider2],
+      });
+
+      expect(mockModuleProvider.getIncludePaths).toHaveBeenCalledTimes(1);
+      expect(mockProvider2.getIncludePaths).toHaveBeenCalledTimes(1);
+      expect(result.file).toBe('user_service.proto');
+    });
+
+    test('should automatically dispose all module providers after parsing', async () => {
+      const mockProvider2 = {
+        getIncludePaths: jest.fn().mockResolvedValue(['/mock/temp/buf-modules2']),
+        dispose: jest.fn().mockResolvedValue(undefined),
+      };
+
+      await parseProto(userServicePath, {
+        includePaths,
+        moduleProviders: [mockModuleProvider, mockProvider2],
+      });
+
+      expect(mockModuleProvider.dispose).toHaveBeenCalledTimes(1);
+      expect(mockProvider2.dispose).toHaveBeenCalledTimes(1);
+    });
+
+    test('should dispose module providers even if parsing fails', async () => {
+      const mockProvider = {
+        getIncludePaths: jest.fn().mockResolvedValue([]),
+        dispose: jest.fn().mockResolvedValue(undefined),
+      };
+
+      await expect(
+        parseProto('./non-existent-file.proto', {
+          moduleProviders: [mockProvider],
+        }),
+      ).rejects.toThrow();
+
+      expect(mockProvider.dispose).toHaveBeenCalledTimes(1);
+    });
+
+    test('should handle module provider errors gracefully', async () => {
+      const failingProvider = {
+        getIncludePaths: jest.fn().mockRejectedValue(new Error('Failed to get include paths')),
+        dispose: jest.fn().mockResolvedValue(undefined),
+      };
+
+      await expect(
+        parseProto(userServicePath, {
+          includePaths,
+          moduleProviders: [failingProvider],
+        }),
+      ).rejects.toThrow('Failed to get include paths');
+
+      expect(failingProvider.dispose).toHaveBeenCalledTimes(1);
+    });
+
+    test('should work with content strings and module providers', async () => {
+      const fileSystem = new DefaultFileSystem();
+      const content = await fileSystem.readFile(userPath, 'utf-8');
+
+      const result = await parseProto(content, {
+        includePaths,
+        moduleProviders: [mockModuleProvider],
+      });
+
+      expect(mockModuleProvider.getIncludePaths).toHaveBeenCalledTimes(1);
+      expect(mockModuleProvider.dispose).toHaveBeenCalledTimes(1);
+      expect(result.file).toBe('inline.proto');
+    });
+
+    test('should merge module provider paths with existing include paths', async () => {
+      const result = await parseProto(userServicePath, {
+        includePaths, // Use the valid include paths that are needed for this file
+        moduleProviders: [mockModuleProvider],
+      });
+
+      expect(mockModuleProvider.getIncludePaths).toHaveBeenCalled();
+      expect(result.file).toBe('user_service.proto');
+    });
+  });
 });

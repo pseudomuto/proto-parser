@@ -47,12 +47,13 @@ npm install @pseudomutojs/proto-parser
 
 ## Architecture
 
-This library uses an **interface-driven architecture** that enables flexible customization while maintaining strong type safety. The core parsing logic is built around two key interfaces:
+This library uses an **interface-driven architecture** that enables flexible customization while maintaining strong type safety. The core parsing logic is built around three key interfaces:
 
 - **`ImportResolver`**: Handles resolving import paths, supporting custom logic for different environments (local files, remote sources, caching, etc.)
 - **`ContentProcessor`**: Converts protobufjs objects to the library's internal types, enabling custom transformations and metadata extraction
+- **`ModuleProvider`**: Provides external proto module dependencies with automatic lifecycle management (downloading, extraction, cleanup)
 
-Both interfaces have default implementations (`DefaultImportResolver`, `DefaultContentProcessor`) that can be used as-is or extended for custom behavior. This design allows the library to adapt to different deployment scenarios while maintaining consistent parsing behavior.
+All interfaces have default implementations (`DefaultImportResolver`, `DefaultContentProcessor`, `BufModuleProvider`) that can be used as-is or extended for custom behavior. This design allows the library to adapt to different deployment scenarios while maintaining consistent parsing behavior.
 
 ## Quick Start
 
@@ -257,21 +258,21 @@ const absPath = await fs.resolve('./relative/path.proto');
 - `isFile(filePath: string): Promise<boolean>` - Check if path points to a file (not directory)
 - `resolve(...paths: string[]): Promise<string>` - Resolve to absolute path
 
-#### `BufResolver` Class
+#### `BufModuleProvider` Class
 
-The BufResolver downloads complete Buf Schema Registry modules as tar.gz archives and extracts them to temporary directories. This provides superior performance and fidelity compared to individual file requests.
+The BufModuleProvider downloads complete Buf Schema Registry modules as tar.gz archives and extracts them to temporary directories. This provides superior performance and fidelity compared to individual file requests.
 
 **Constructor:**
 ```typescript
-new BufResolver(modules: string[], options?: BufResolverOptions)
+new BufModuleProvider(modules: string[], options?: BufModuleProviderOptions)
 ```
 
 **Usage:**
 ```typescript
-import { BufResolver, DefaultFileSystem, DefaultImportResolver, parseProto } from '@pseudomutojs/proto-parser';
+import { BufModuleProvider, parseProto } from '@pseudomutojs/proto-parser';
 
-// Create resolver with modules to preload
-const bufResolver = new BufResolver([
+// Create module provider with modules to preload
+const bufModuleProvider = new BufModuleProvider([
   'buf.build/bufbuild/protovalidate:v1.0.0',
   'buf.build/googleapis/googleapis'
 ], {
@@ -279,31 +280,24 @@ const bufResolver = new BufResolver([
   bufToken: process.env.BUF_TOKEN // Optional: for private modules
 });
 
-// Download and extract modules to temporary directories
-const tempDirs = await bufResolver.preloadModules();
-
-// Integrate with import resolver
-const fileSystem = new DefaultFileSystem();
-const importResolver = new DefaultImportResolver(__dirname, fileSystem, {
-  includePaths: tempDirs
+// Parse proto files with automatic module provider integration
+const proto = await parseProto('./api.proto', { 
+  moduleProviders: [bufModuleProvider] 
 });
 
-// Parse proto files with Buf module dependencies
-const proto = await parseProto('./api.proto', { importResolver });
-
-// Clean up temporary directories when done
-await bufResolver.cleanup();
+// The parser automatically handles cleanup - no manual disposal needed!
 ```
 
 **Key advantages:**
 - Downloads original proto files (preserves comments and formatting)
 - Single request per module vs. multiple file requests
 - Automatic dependency resolution with complete module archives
-- Integrates seamlessly with existing ImportResolver architecture
+- Automatic lifecycle management (no manual cleanup required)
+- Seamless integration with parsing pipeline via `moduleProviders` option
 
 **Options:**
 ```typescript
-interface BufResolverOptions {
+interface BufModuleProviderOptions {
   /** Optional Buf API token for authenticated requests to private modules */
   bufToken?: string;
   /** Base directory for temporary files (defaults to OS temp directory) */
@@ -420,6 +414,8 @@ interface ParseOptions {
   contentProcessor?: ContentProcessor;
   /** Custom import resolver for resolving proto import paths */
   importResolver?: ImportResolver;
+  /** Module providers for external proto dependencies with automatic lifecycle management */
+  moduleProviders?: ModuleProvider[];
 }
 
 interface DirectoryParseOptions extends ParseOptions {
@@ -730,6 +726,32 @@ class CustomFieldProcessor extends DefaultContentProcessor {
 // Use custom field processor
 const proto = await parseProto('./api.proto', {
   contentProcessor: new CustomFieldProcessor()
+});
+```
+
+### Working with External Dependencies
+
+The modern approach uses module providers for automatic dependency management:
+
+```typescript
+import { BufModuleProvider, parseProtoDirectory } from '@pseudomutojs/proto-parser';
+
+// Create module provider for external dependencies
+const bufProvider = new BufModuleProvider([
+  'buf.build/bufbuild/protovalidate:v1.0.0',
+  'buf.build/googleapis/googleapis'
+]);
+
+// Parse directory with automatic dependency resolution
+const protoSet = await parseProtoDirectory('./api/protos', {
+  recursive: true,
+  moduleProviders: [bufProvider]  // Automatic download, extraction, and cleanup
+});
+
+// Generate unified IDL including external dependencies
+const unifiedIdl = protoSet.generateSupersetIdl({
+  packageName: 'api.unified',
+  includeLocalOnly: true  // Exclude external deps from final IDL
 });
 ```
 

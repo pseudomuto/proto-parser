@@ -206,6 +206,8 @@ export interface ParseOptions {
   importResolver?: ImportResolver;
   /** Custom filesystem implementation for file operations */
   fileSystem?: FileSystem;
+  /** Module providers for external proto dependencies */
+  moduleProviders?: ModuleProvider[];
 }
 
 /**
@@ -295,6 +297,20 @@ export interface ContentProcessor {
    * @returns Array containing all service definitions found in the namespace hierarchy
    */
   collectAllServices(root: protobuf.Namespace, services?: Service[], currentNamespace?: string): Service[];
+}
+
+/**
+ * Interface for providing external proto module dependencies.
+ * Implementations handle downloading, caching, and cleanup of proto files.
+ *
+ * @public
+ * @since 0.3.0
+ */
+export interface ModuleProvider {
+  /** Get include paths containing module proto files */
+  getIncludePaths(): Promise<string[]>;
+  /** Clean up any resources */
+  dispose(): Promise<void>;
 }
 
 /**
