@@ -50,10 +50,10 @@ npm install @pseudomutojs/proto-parser
 This library uses an **interface-driven architecture** that enables flexible customization while maintaining strong type safety. The core parsing logic is built around three key interfaces:
 
 - **`ImportResolver`**: Handles resolving import paths, supporting custom logic for different environments (local files, remote sources, caching, etc.)
-- **`ContentProcessor`**: Converts protobufjs objects to the library's internal types, enabling custom transformations and metadata extraction
+- **`ProtoParser`**: Converts protobufjs objects to the library's internal types, enabling custom transformations and metadata extraction
 - **`ModuleProvider`**: Provides external proto module dependencies with automatic lifecycle management (downloading, extraction, cleanup)
 
-All interfaces have default implementations (`DefaultImportResolver`, `DefaultContentProcessor`, `BufModuleProvider`) that can be used as-is or extended for custom behavior. This design allows the library to adapt to different deployment scenarios while maintaining consistent parsing behavior.
+All interfaces have default implementations (`DefaultImportResolver`, `ProtoParser`, `BufModuleProvider`) that can be used as-is or extended for custom behavior. This design allows the library to adapt to different deployment scenarios while maintaining consistent parsing behavior.
 
 ## Quick Start
 
@@ -205,16 +205,16 @@ class CustomResolver extends DefaultImportResolver {
 }
 ```
 
-#### `DefaultContentProcessor` Class
+#### `ProtoParser` Class
 
-The default implementation of the `ContentProcessor` interface, handling conversion from protobufjs objects to internal types.
+The default implementation of the `IProtoParser` interface, handling conversion from protobufjs objects to internal types.
 
 **Usage:**
 ```typescript
-import { DefaultContentProcessor } from '@pseudomutojs/proto-parser';
+import { ProtoParser } from '@pseudomutojs/proto-parser';
 
 // Extend for custom processing
-class CustomProcessor extends DefaultContentProcessor {
+class CustomProcessor extends ProtoParser {
   parseMessage(messageType: any, namespace: string) {
     const result = super.parseMessage(messageType, namespace);
     // Add custom processing
@@ -411,7 +411,7 @@ interface ParseOptions {
   /** Whether to include oneof definitions (default: true) */
   oneofs?: boolean;
   /** Custom content processor for converting protobufjs objects to internal types */
-  contentProcessor?: ContentProcessor;
+  contentProcessor?: IProtoParser;
   /** Custom import resolver for resolving proto import paths */
   importResolver?: ImportResolver;
   /** Module providers for external proto dependencies with automatic lifecycle management */
@@ -671,16 +671,16 @@ const proto = await parseProto('./api.proto', {
 
 ### Custom Content Processing
 
-The library also supports custom content processing through the `ContentProcessor` interface, allowing you to customize how protobufjs objects are converted to the library's internal types.
+The library also supports custom proto parsing through the `ProtoParser` class, allowing you to customize how protobufjs objects are converted to the library's internal types.
 
 #### Logging Content Processor
 
 Add logging to track parsing operations:
 
 ```typescript
-import { DefaultContentProcessor, parseProto } from '@pseudomutojs/proto-parser';
+import { ProtoParser, parseProto } from '@pseudomutojs/proto-parser';
 
-class LoggingContentProcessor extends DefaultContentProcessor {
+class LoggingProtoParser extends ProtoParser {
   parseMessage(messageType: any, namespace: string) {
     console.log(`Parsing message: ${namespace}.${messageType.name}`);
     return super.parseMessage(messageType, namespace);
@@ -694,7 +694,7 @@ class LoggingContentProcessor extends DefaultContentProcessor {
 
 // Use logging processor
 const proto = await parseProto('./api.proto', {
-  contentProcessor: new LoggingContentProcessor()
+  contentProcessor: new LoggingProtoParser()
 });
 ```
 
@@ -703,9 +703,9 @@ const proto = await parseProto('./api.proto', {
 Customize how fields are processed:
 
 ```typescript
-import { DefaultContentProcessor } from '@pseudomutojs/proto-parser';
+import { ProtoParser } from '@pseudomutojs/proto-parser';
 
-class CustomFieldProcessor extends DefaultContentProcessor {
+class CustomFieldProcessor extends ProtoParser {
   parseField(field: any) {
     const result = super.parseField(field);
     

@@ -1,14 +1,15 @@
 import * as protobuf from 'protobufjs';
 
-import { ContentProcessor, Enum, EnumValue, Field, FieldRule, Message, OneOf, Service, ServiceMethod } from './types';
-import { joinNamespace } from './utils';
+import { joinNamespace } from '../utils';
+import { IProtoParser } from './IProtoParser';
+import { Enum, EnumValue, Field, FieldRule, Message, OneOf, Service, ServiceMethod } from './types';
 
 /**
- * Default implementation of ContentProcessor interface.
+ * Default implementation of IProtoParser interface.
  * Handles conversion of protobufjs objects to our internal types.
  * Provides unified logic for parsing messages, enums, services, etc.
  */
-export class DefaultContentProcessor implements ContentProcessor {
+export class ProtoParser implements IProtoParser {
   /**
    * Converts a protobuf.Field to our Field type.
    */
@@ -134,76 +135,5 @@ export class DefaultContentProcessor implements ContentProcessor {
       namespace,
       methods: service.methodsArray.map(method => this.parseServiceMethod(method)),
     };
-  }
-
-  /**
-   * Recursively collects all messages from a protobuf namespace.
-   */
-  collectAllMessages(root: protobuf.Namespace, messages: Message[] = [], currentNamespace = ''): Message[] {
-    if (root.nested) {
-      for (const name of Object.keys(root.nested)) {
-        const nested = root.nested[name];
-
-        if (nested instanceof protobuf.Type) {
-          messages.push(this.parseMessage(nested, currentNamespace));
-        }
-
-        if (
-          nested instanceof protobuf.Namespace &&
-          !(nested instanceof protobuf.Type) &&
-          !(nested instanceof protobuf.Service)
-        ) {
-          const nestedNamespace = currentNamespace ? `${currentNamespace}.${name}` : name;
-          this.collectAllMessages(nested, messages, nestedNamespace);
-        }
-      }
-    }
-    return messages;
-  }
-
-  /**
-   * Recursively collects all enums from a protobuf namespace.
-   */
-  collectAllEnums(root: protobuf.Namespace, enums: Enum[] = [], currentNamespace = ''): Enum[] {
-    if (root.nested) {
-      for (const name of Object.keys(root.nested)) {
-        const nested = root.nested[name];
-
-        if (nested instanceof protobuf.Enum) {
-          enums.push(this.parseEnum(nested, currentNamespace));
-        }
-
-        if (nested instanceof protobuf.Namespace && !(nested instanceof protobuf.Service)) {
-          const nestedNamespace = currentNamespace ? `${currentNamespace}.${name}` : name;
-          this.collectAllEnums(nested, enums, nestedNamespace);
-        }
-      }
-    }
-    return enums;
-  }
-
-  /**
-   * Recursively collects all services from a protobuf namespace.
-   */
-  collectAllServices(root: protobuf.Namespace, services: Service[] = [], currentNamespace = ''): Service[] {
-    if (root.nested) {
-      for (const name of Object.keys(root.nested)) {
-        const nested = root.nested[name];
-
-        if (nested instanceof protobuf.Service) {
-          services.push(this.parseService(nested, currentNamespace));
-        }
-
-        if (
-          nested instanceof protobuf.Namespace &&
-          !(nested instanceof protobuf.Type) &&
-          !(nested instanceof protobuf.Service)
-        ) {
-          const nestedNamespace = currentNamespace ? `${currentNamespace}.${name}` : name;
-          this.collectAllServices(nested, services, nestedNamespace);
-        }
-      }
-    }
-    return services;
   }
 }

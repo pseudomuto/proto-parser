@@ -1,5 +1,5 @@
-import { DefaultContentProcessor } from './DefaultContentProcessor';
 import { DefaultFileSystem } from './DefaultFileSystem';
+import { ProtoParser } from './proto';
 import { DefaultImportResolver } from './resolvers/DefaultImportResolver';
 import { ParseOptions, ResolvedParseOptions } from './types';
 
@@ -21,7 +21,7 @@ export function createDefaultParseOptions(baseDir: string, options: ParseOptions
     keepCase: options.keepCase !== false,
     defaults: options.defaults !== false,
     oneofs: options.oneofs !== false,
-    contentProcessor: options.contentProcessor || new DefaultContentProcessor(),
+    contentProcessor: options.contentProcessor || new ProtoParser(),
     importResolver: options.importResolver || new DefaultImportResolver(baseDir, fileSystem, options),
     fileSystem,
   };

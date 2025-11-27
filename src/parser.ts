@@ -6,14 +6,8 @@ import { DefaultFileSystem } from './DefaultFileSystem';
 import { ProtoSet } from './ProtoSet';
 import { createDefaultParseOptions } from './defaults';
 import { ProtoBuildError, ProtoParseError, getErrorMessage, isNodeError } from './errors';
-import {
-  ContentProcessor,
-  DirectoryParseOptions,
-  FileSystem,
-  ParseOptions,
-  Proto,
-  ResolvedParseOptions,
-} from './types';
+import { collectProtoDefinitions } from './proto';
+import { DirectoryParseOptions, FileSystem, IProtoParser, ParseOptions, Proto, ResolvedParseOptions } from './types';
 import { getProtoDirectory } from './utils';
 
 /**
@@ -38,7 +32,7 @@ const buildProtoResult = (
   protoPath: string,
   content: string,
   parsed: protobuf.IParserResult,
-  contentProcessor: ContentProcessor,
+  contentProcessor: IProtoParser,
   options: BuildProtoOptions = {},
 ): Proto | null => {
   const { resolveAll = true, currentFileOnly = false, keepCase = true, allowEmpty = false } = options;
@@ -65,9 +59,7 @@ const buildProtoResult = (
     }
 
     // Collect definitions from the target root
-    const services = contentProcessor.collectAllServices(targetRoot);
-    const messages = contentProcessor.collectAllMessages(targetRoot);
-    const enums = contentProcessor.collectAllEnums(targetRoot);
+    const { services, messages, enums } = collectProtoDefinitions(targetRoot, contentProcessor);
 
     // Check if we found any definitions
     if (!allowEmpty && services.length === 0 && messages.length === 0 && enums.length === 0) {
