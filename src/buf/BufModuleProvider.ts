@@ -4,8 +4,8 @@ import * as stream from 'stream';
 import { pipeline } from 'stream/promises';
 import * as zlib from 'zlib';
 
-import { DefaultFileSystem } from '../DefaultFileSystem';
-import { FileSystem, ModuleProvider } from '../types';
+import { FileSystem } from '../sys';
+import { IFileSystem, ModuleProvider } from '../types';
 import { TarExtractStream } from './TarExtractStream';
 import { ModuleCoordinate, ModuleCoordinateError, parseModuleCoordinate } from './moduleCoordinate';
 
@@ -33,8 +33,8 @@ export interface BufModuleProviderOptions {
   bufToken?: string;
   /** Base directory for temporary files (defaults to OS temp directory) */
   tempDir?: string;
-  /** FileSystem implementation to use (defaults to DefaultFileSystem) */
-  fileSystem?: FileSystem;
+  /** FileSystem implementation to use (defaults to FileSystem) */
+  fileSystem?: IFileSystem;
   /** Whether to include dependencies when downloading modules (defaults to true) */
   includeDependencies?: boolean;
   /** Whether to automatically include Google Protocol Buffer well-known types (defaults to true) */
@@ -74,7 +74,7 @@ export interface BufModuleProviderOptions {
 export class BufModuleProvider implements ModuleProvider {
   #modules: string[];
   #options: Required<BufModuleProviderOptions>;
-  #fileSystem: FileSystem;
+  #fileSystem: IFileSystem;
   #tempDirs: string[] = [];
 
   constructor(modules: string[], options: BufModuleProviderOptions = {}) {
@@ -83,7 +83,7 @@ export class BufModuleProvider implements ModuleProvider {
     // Automatically include well-known types if requested and not already present
     this.#modules = this.buildModuleList(modules, includeWKTs);
 
-    this.#fileSystem = options.fileSystem ?? new DefaultFileSystem();
+    this.#fileSystem = options.fileSystem ?? new FileSystem();
     this.#options = {
       bufToken: options.bufToken,
       tempDir: options.tempDir ?? os.tmpdir(),

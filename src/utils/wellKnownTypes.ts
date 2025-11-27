@@ -1,6 +1,6 @@
 import * as path from 'path';
 
-import { FileSystem } from '../types';
+import { IFileSystem } from '../types';
 
 /**
  * Checks if an import path refers to a Google Well-Known Type.
@@ -20,7 +20,7 @@ export function isWellKnownType(importPath: string): boolean {
  * @param fileSystem - File system abstraction for checking file existence
  * @returns Promise that resolves to the full path or null if not found
  */
-export async function resolveWellKnownType(importPath: string, fileSystem: FileSystem): Promise<string | null> {
+export async function resolveWellKnownType(importPath: string, fileSystem: IFileSystem): Promise<string | null> {
   if (!isWellKnownType(importPath)) {
     return null;
   }

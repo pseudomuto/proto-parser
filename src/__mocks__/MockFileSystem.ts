@@ -1,11 +1,11 @@
 import { Stats } from 'fs';
 
-import { FileSystem } from '../types';
+import { IFileSystem } from '../types';
 
 /**
- * Mock implementation of FileSystem interface for testing.
+ * Mock implementation of IFileSystem interface for testing.
  */
-export class MockFileSystem implements FileSystem {
+export class MockFileSystem implements IFileSystem {
   public files: Map<string, string | Buffer> = new Map();
   public directories: Set<string> = new Set();
 

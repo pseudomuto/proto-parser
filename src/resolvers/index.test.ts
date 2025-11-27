@@ -1,13 +1,13 @@
 /**
  * @fileoverview Functional tests for resolver exports
  */
-import { DefaultFileSystem } from '../DefaultFileSystem';
+import { FileSystem } from '../sys';
 import { ImportProcessor } from './index';
 
 describe('resolvers - functional tests', () => {
   describe('ImportProcessor', () => {
     it('should instantiate and resolve basic imports', async () => {
-      const fileSystem = new DefaultFileSystem();
+      const fileSystem = new FileSystem();
       const resolver = new ImportProcessor(process.cwd(), fileSystem);
 
       // Test resolving a well-known type
@@ -17,7 +17,7 @@ describe('resolvers - functional tests', () => {
     });
 
     it('should validate imports and throw for unresolvable ones', async () => {
-      const fileSystem = new DefaultFileSystem();
+      const fileSystem = new FileSystem();
       const resolver = new ImportProcessor('/nonexistent/path', fileSystem);
 
       await expect(resolver.validateImports(['nonexistent.proto'])).rejects.toThrow(

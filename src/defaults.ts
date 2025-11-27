@@ -1,6 +1,6 @@
-import { DefaultFileSystem } from './DefaultFileSystem';
 import { ProtoParser } from './proto';
 import { ImportProcessor } from './resolvers/ImportProcessor';
+import { FileSystem } from './sys';
 import { ParseOptions, ResolvedParseOptions } from './types';
 
 /**
@@ -15,7 +15,7 @@ import { ParseOptions, ResolvedParseOptions } from './types';
  * @internal
  */
 export function createDefaultParseOptions(baseDir: string, options: ParseOptions = {}): ResolvedParseOptions {
-  const fileSystem = options.fileSystem || new DefaultFileSystem();
+  const fileSystem = options.fileSystem || new FileSystem();
   return {
     includePaths: options.includePaths || [],
     keepCase: options.keepCase !== false,
