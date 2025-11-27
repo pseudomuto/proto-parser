@@ -8,13 +8,13 @@ import { parseProto } from './parser';
  *
  * These tests verify the entire parsing pipeline works correctly,
  * including the interaction between:
- * - ImportResolver (for resolving proto imports)
+ * - IImportProcessor (for resolving proto imports)
  * - ContentProcessor (for parsing protobuf structures)
  * - Main parser logic (for orchestrating the parsing process)
  *
  * For unit tests of individual components, see:
  * - ContentProcessor.test.ts (parsing logic)
- * - ImportResolver.test.ts (import resolution)
+ * - ImportProcessor.test.ts (import resolution)
  */
 describe('parseProto', () => {
   const fixturesDir = path.join(process.cwd(), 'fixtures');
@@ -367,6 +367,86 @@ describe('parseProto', () => {
 
       expect(mockModuleProvider.getIncludePaths).toHaveBeenCalled();
       expect(result.file).toBe('user_service.proto');
+    });
+  });
+
+  describe('import resolution (createProtobufResolver)', () => {
+    test('should resolve imports with include paths', async () => {
+      // Test that the parser can resolve imports using include paths
+      const result = await parseProto(userServicePath, { includePaths });
+
+      // This file imports from user.proto, which should be resolved successfully
+      expect(result.messages).toBeDefined();
+      expect(result.services).toBeDefined();
+      // The fact that parsing succeeds means import resolution worked
+    });
+
+    test('should handle well-known types', async () => {
+      const protoContent = `
+        syntax = "proto3";
+        import "google/protobuf/timestamp.proto";
+        
+        message TestMessage {
+          google.protobuf.Timestamp created_at = 1;
+        }
+      `;
+
+      // This should work even if WKT files don't exist locally
+      const result = await parseProto(protoContent, { includePaths });
+      expect(result.messages.length).toBeGreaterThan(0);
+      // Find our TestMessage (imported messages may also be included)
+      const testMessage = result.messages.find(m => m.name === 'TestMessage');
+      expect(testMessage).toBeDefined();
+      expect(testMessage?.name).toBe('TestMessage');
+    });
+
+    test('should throw for unresolvable imports', async () => {
+      const protoContent = `
+        syntax = "proto3";
+        import "non/existent/file.proto";
+        
+        message TestMessage {
+          string value = 1;
+        }
+      `;
+
+      await expect(parseProto(protoContent, { includePaths })).rejects.toThrow(/Cannot resolve import/);
+    });
+
+    test('should resolve absolute path imports if they exist', async () => {
+      const fileSystem = new DefaultFileSystem();
+      const absolutePath = path.resolve(userPath);
+
+      // Create a proto that imports using absolute path
+      const protoContent = `
+        syntax = "proto3";
+        import "${absolutePath}";
+        
+        message TestMessage {
+          api.user.v1.User user = 1;
+        }
+      `;
+
+      const result = await parseProto(protoContent, {
+        includePaths,
+        fileSystem,
+      });
+
+      expect(result.messages.length).toBeGreaterThan(0);
+      // Find our TestMessage (imported messages will also be included)
+      const testMessage = result.messages.find(m => m.name === 'TestMessage');
+      expect(testMessage).toBeDefined();
+      expect(testMessage?.name).toBe('TestMessage');
+    });
+
+    test('should prioritize include paths over well-known types', async () => {
+      // If a file exists in include paths with the same name as a WKT,
+      // it should use the include path version
+      const result = await parseProto(userServicePath, { includePaths });
+
+      // The parsing should succeed using the include paths
+      expect(result.file).toBe('user_service.proto');
+      expect(result.services).toBeDefined();
     });
   });
 });

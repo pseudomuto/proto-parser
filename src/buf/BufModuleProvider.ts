@@ -59,8 +59,8 @@ export interface BufModuleProviderOptions {
  *
  * const tempDirs = await provider.getIncludePaths();
  *
- * // Use with existing ImportResolver
- * const importResolver = new DefaultImportResolver(baseDir, fileSystem, {
+ * // Use with existing ImportProcessor
+ * const importResolver = new ImportProcessor(baseDir, fileSystem, {
  *   includePaths: tempDirs
  * });
  *

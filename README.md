@@ -49,11 +49,11 @@ npm install @pseudomutojs/proto-parser
 
 This library uses an **interface-driven architecture** that enables flexible customization while maintaining strong type safety. The core parsing logic is built around three key interfaces:
 
-- **`ImportResolver`**: Handles resolving import paths, supporting custom logic for different environments (local files, remote sources, caching, etc.)
-- **`ProtoParser`**: Converts protobufjs objects to the library's internal types, enabling custom transformations and metadata extraction
+- **`IImportProcessor`**: Handles resolving import paths, supporting custom logic for different environments (local files, remote sources, caching, etc.)
+- **`IProtoParser`**: Converts protobufjs objects to the library's internal types, enabling custom transformations and metadata extraction
 - **`ModuleProvider`**: Provides external proto module dependencies with automatic lifecycle management (downloading, extraction, cleanup)
 
-All interfaces have default implementations (`DefaultImportResolver`, `ProtoParser`, `BufModuleProvider`) that can be used as-is or extended for custom behavior. This design allows the library to adapt to different deployment scenarios while maintaining consistent parsing behavior.
+All interfaces have default implementations (`ImportProcessor`, `ProtoParser`, `BufModuleProvider`) that can be used as-is or extended for custom behavior. This design allows the library to adapt to different deployment scenarios while maintaining consistent parsing behavior.
 
 ## Quick Start
 
@@ -178,26 +178,26 @@ Asynchronously parses all Protocol Buffer files in a directory.
 
 **Returns:** `Promise<ProtoSet>` - A promise that resolves to a ProtoSet containing all parsed proto files
 
-#### `DefaultImportResolver` Class
+#### `ImportProcessor` Class
 
-The default implementation of the `ImportResolver` interface, providing standard import resolution logic.
+The default implementation of the `IImportProcessor` interface, providing standard import resolution logic.
 
 **Constructor:**
 ```typescript
-new DefaultImportResolver(baseDir: string, fileSystem: FileSystem, options?: ParseOptions)
+new ImportProcessor(baseDir: string, fileSystem: FileSystem, options?: ParseOptions)
 ```
 
 **Usage:**
 ```typescript
-import { DefaultImportResolver, DefaultFileSystem } from '@pseudomutojs/proto-parser';
+import { ImportProcessor, DefaultFileSystem } from '@pseudomutojs/proto-parser';
 
 const fileSystem = new DefaultFileSystem();
-const resolver = new DefaultImportResolver('/base/directory', fileSystem, {
+const resolver = new ImportProcessor('/base/directory', fileSystem, {
   includePaths: ['./protos', './third_party']
 });
 
 // Extend for custom behavior
-class CustomResolver extends DefaultImportResolver {
+class CustomResolver extends ImportProcessor {
   async resolveImport(importPath: string): Promise<string | null> {
     // Custom logic
     return super.resolveImport(importPath);
@@ -327,7 +327,7 @@ import { createDefaultParseOptions } from '@pseudomutojs/proto-parser';
 
 const resolvedOptions = createDefaultParseOptions('/base/dir', {
   includePaths: ['./protos'],
-  importResolver: new CustomImportResolver()
+  importResolver: new CustomImportProcessor()
 });
 ```
 
@@ -413,7 +413,7 @@ interface ParseOptions {
   /** Custom content processor for converting protobufjs objects to internal types */
   contentProcessor?: IProtoParser;
   /** Custom import resolver for resolving proto import paths */
-  importResolver?: ImportResolver;
+  importResolver?: IImportProcessor;
   /** Module providers for external proto dependencies with automatic lifecycle management */
   moduleProviders?: ModuleProvider[];
 }
@@ -515,16 +515,16 @@ For complete type definitions, see the [TypeScript definitions](./src/types.ts).
 
 ### Custom Import Resolution
 
-The library supports custom import resolution logic through the `ImportResolver` interface. This enables powerful customization for different environments and use cases.
+The library supports custom import resolution logic through the `IImportProcessor` interface. This enables powerful customization for different environments and use cases.
 
 #### Caching Import Resolver
 
 Implement caching to improve performance when parsing multiple files that share imports:
 
 ```typescript
-import { DefaultImportResolver, DefaultFileSystem, parseProto } from '@pseudomutojs/proto-parser';
+import { ImportProcessor, DefaultFileSystem, parseProto } from '@pseudomutojs/proto-parser';
 
-class CachingImportResolver extends DefaultImportResolver {
+class CachingImportProcessor extends ImportProcessor {
   private cache = new Map<string, string | null>();
 
   async resolveImport(importPath: string): Promise<string | null> {
@@ -541,7 +541,7 @@ class CachingImportResolver extends DefaultImportResolver {
 // Use the caching resolver
 const fileSystem = new DefaultFileSystem();
 const proto = await parseProto('./api.proto', {
-  importResolver: new CachingImportResolver('/base/dir', fileSystem, { includePaths: ['./protos'] })
+  importResolver: new CachingImportProcessor('/base/dir', fileSystem, { includePaths: ['./protos'] })
 });
 ```
 
@@ -550,9 +550,9 @@ const proto = await parseProto('./api.proto', {
 Fetch imports from remote sources like GitHub or package registries:
 
 ```typescript
-import { ImportResolver, parseProto } from '@pseudomutojs/proto-parser';
+import { IImportProcessor, parseProto } from '@pseudomutojs/proto-parser';
 
-class RemoteImportResolver implements ImportResolver {
+class RemoteImportProcessor implements IImportProcessor {
   constructor(private baseUrl: string) {}
 
   async resolveImport(importPath: string): Promise<string | null> {
@@ -607,7 +607,7 @@ class RemoteImportResolver implements ImportResolver {
 
 // Use remote resolver
 const proto = await parseProto('./api.proto', {
-  importResolver: new RemoteImportResolver('https://raw.githubusercontent.com/user/protos/main')
+  importResolver: new RemoteImportProcessor('https://raw.githubusercontent.com/user/protos/main')
 });
 ```
 
@@ -617,9 +617,9 @@ const proto = await parseProto('./api.proto', {
 Combine multiple resolution strategies:
 
 ```typescript
-import { DefaultImportResolver, DefaultFileSystem, FileSystem } from '@pseudomutojs/proto-parser';
+import { ImportProcessor, DefaultFileSystem, FileSystem } from '@pseudomutojs/proto-parser';
 
-class MultiSourceImportResolver extends DefaultImportResolver {
+class MultiSourceImportProcessor extends ImportProcessor {
   constructor(
     baseDir: string,
     fileSystem: FileSystem,
@@ -662,7 +662,7 @@ class MultiSourceImportResolver extends DefaultImportResolver {
 // Use multi-source resolver
 const fileSystem = new DefaultFileSystem();
 const proto = await parseProto('./api.proto', {
-  importResolver: new MultiSourceImportResolver('/local/protos', fileSystem, [
+  importResolver: new MultiSourceImportProcessor('/local/protos', fileSystem, [
     'https://raw.githubusercontent.com/googleapis/googleapis/master',
     'https://raw.githubusercontent.com/grpc-ecosystem/grpc-gateway/master'
   ])

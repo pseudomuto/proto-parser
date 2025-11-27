@@ -1,4 +1,5 @@
 import { IProtoParser } from './proto';
+import { IImportProcessor } from './resolvers/IImportProcessor';
 
 // Re-export proto-specific types from the proto package
 export {
@@ -15,6 +16,9 @@ export {
   Extension,
   IProtoParser,
 } from './proto';
+
+// Re-export resolver interfaces
+export { IImportProcessor } from './resolvers/IImportProcessor';
 
 /**
  * Configuration options for parsing Protocol Buffer files.
@@ -34,7 +38,7 @@ export interface ParseOptions {
   /** Custom proto parser for converting protobufjs objects to internal types */
   contentProcessor?: IProtoParser;
   /** Custom import resolver for resolving proto import paths */
-  importResolver?: ImportResolver;
+  importResolver?: IImportProcessor;
   /** Custom filesystem implementation for file operations */
   fileSystem?: FileSystem;
   /** Module providers for external proto dependencies */
@@ -92,22 +96,6 @@ export interface ModuleProvider {
 }
 
 /**
- * Interface for import resolution functionality.
- * Handles async import resolution with support for include paths and well-known types.
- *
- * @public
- * @since 0.2.0
- */
-export interface ImportResolver {
-  /** Asynchronously resolves an import path to its full file system path */
-  resolveImport(importPath: string): Promise<string | null>;
-  /** Validates that all imports can be resolved before loading */
-  validateImports(imports: string[]): Promise<void>;
-  /** Creates a resolve path function compatible with protobufjs */
-  createProtobufResolver(): (origin: string, target: string) => string;
-}
-
-/**
  * Internal type for ParseOptions with all fields populated with defaults.
  *
  * @internal
@@ -124,7 +112,7 @@ export interface ResolvedParseOptions {
   /** Proto parser for converting protobufjs objects to internal types */
   contentProcessor: IProtoParser;
   /** Import resolver for resolving proto import paths */
-  importResolver: ImportResolver;
+  importResolver: IImportProcessor;
   /** Filesystem implementation for file operations */
   fileSystem: FileSystem;
 }

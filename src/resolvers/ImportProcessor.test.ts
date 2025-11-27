@@ -1,21 +1,14 @@
-import * as fs from 'fs';
 import * as path from 'path';
 
 import { MockFileSystem } from '../__mocks__/MockFileSystem';
 import { ParseOptions } from '../types';
-import { DefaultImportResolver } from './DefaultImportResolver';
+import { ImportProcessor } from './ImportProcessor';
 
-// Mock only fs.existsSync for createProtobufResolver tests
-jest.mock('fs', () => ({
-  existsSync: jest.fn(),
-}));
-
-describe('DefaultImportResolver', () => {
+describe('ImportProcessor', () => {
   const fixturesDir = path.join(process.cwd(), 'fixtures');
   const baseDir = path.join(fixturesDir, 'api');
   const tempDir = path.join(process.cwd(), 'test-temp');
   let mockFileSystem: MockFileSystem;
-  const mockedFs = fs as jest.Mocked<typeof fs>;
 
   beforeEach(() => {
     mockFileSystem = new MockFileSystem();
@@ -27,7 +20,7 @@ describe('DefaultImportResolver', () => {
 
   describe('constructor', () => {
     it('should initialize with base directory and default include paths', () => {
-      const resolver = new DefaultImportResolver(baseDir, mockFileSystem);
+      const resolver = new ImportProcessor(baseDir, mockFileSystem);
       // We can't directly test private properties, but we can test the behavior
       expect(resolver).toBeDefined();
     });
@@ -36,7 +29,7 @@ describe('DefaultImportResolver', () => {
       const options: ParseOptions = {
         includePaths: ['/custom/path1', '/custom/path2'],
       };
-      const resolver = new DefaultImportResolver(baseDir, mockFileSystem, options);
+      const resolver = new ImportProcessor(baseDir, mockFileSystem, options);
       expect(resolver).toBeDefined();
     });
   });
@@ -48,7 +41,7 @@ describe('DefaultImportResolver', () => {
       // Mock: absolute path exists
       mockFileSystem.exists.mockResolvedValue(true);
 
-      const resolver = new DefaultImportResolver(baseDir, mockFileSystem);
+      const resolver = new ImportProcessor(baseDir, mockFileSystem);
       const result = await resolver.resolveImport(absolutePath);
       expect(result).toBe(absolutePath);
     });
@@ -61,7 +54,7 @@ describe('DefaultImportResolver', () => {
       enoentError.code = 'ENOENT';
       mockFileSystem.exists.mockResolvedValue(false);
 
-      const resolver = new DefaultImportResolver(baseDir, mockFileSystem);
+      const resolver = new ImportProcessor(baseDir, mockFileSystem);
       const result = await resolver.resolveImport(nonExistentPath);
       expect(result).toBeNull();
     });
@@ -70,13 +63,13 @@ describe('DefaultImportResolver', () => {
       // Mock: file exists in base directory
       mockFileSystem.exists.mockResolvedValue(true);
 
-      const resolver = new DefaultImportResolver(baseDir, mockFileSystem);
+      const resolver = new ImportProcessor(baseDir, mockFileSystem);
       const result = await resolver.resolveImport('user/v1/user.proto');
       expect(result).toBe(path.join(baseDir, 'user/v1/user.proto'));
     });
 
     it('should resolve paths from include directories', async () => {
-      const resolver = new DefaultImportResolver('/some/other/dir', mockFileSystem, {
+      const resolver = new ImportProcessor('/some/other/dir', mockFileSystem, {
         includePaths: [fixturesDir],
       });
 
@@ -101,7 +94,7 @@ describe('DefaultImportResolver', () => {
         return filePath === testFile;
       });
 
-      const resolver = new DefaultImportResolver(tempDir, mockFileSystem);
+      const resolver = new ImportProcessor(tempDir, mockFileSystem);
       const result = await resolver.resolveImport('test.proto');
       expect(result).toBe(testFile);
     });
@@ -114,13 +107,13 @@ describe('DefaultImportResolver', () => {
       // Mock file doesn't exist anywhere
       mockFileSystem.exists.mockResolvedValue(false);
 
-      const resolver = new DefaultImportResolver(baseDir, mockFileSystem);
+      const resolver = new ImportProcessor(baseDir, mockFileSystem);
       const result = await resolver.resolveImport('non-existent.proto');
       expect(result).toBeNull();
     });
 
     it('should handle Google Well-Known Types', async () => {
-      const resolver = new DefaultImportResolver(baseDir, mockFileSystem);
+      const resolver = new ImportProcessor(baseDir, mockFileSystem);
 
       // Test common WKTs
       const emptyResult = await resolver.resolveImport('google/protobuf/empty.proto');
@@ -134,7 +127,7 @@ describe('DefaultImportResolver', () => {
 
   describe('validateImports', () => {
     it('should validate existing imports', async () => {
-      const resolver = new DefaultImportResolver(baseDir, mockFileSystem);
+      const resolver = new ImportProcessor(baseDir, mockFileSystem);
       const imports = ['user/v1/user.proto', 'common/v1/types.proto'];
 
       // Mock files exist in base directory
@@ -145,7 +138,7 @@ describe('DefaultImportResolver', () => {
     });
 
     it('should skip validation for Google WKTs', async () => {
-      const resolver = new DefaultImportResolver(baseDir, mockFileSystem);
+      const resolver = new ImportProcessor(baseDir, mockFileSystem);
       const imports = ['google/protobuf/empty.proto', 'google/protobuf/timestamp.proto', 'google/protobuf/any.proto'];
 
       // Mock exists to return false for include paths but true for WKT resolution paths
@@ -163,7 +156,7 @@ describe('DefaultImportResolver', () => {
     });
 
     it('should throw for non-existent imports', async () => {
-      const resolver = new DefaultImportResolver(baseDir, mockFileSystem);
+      const resolver = new ImportProcessor(baseDir, mockFileSystem);
       const imports = ['non-existent.proto', 'another-missing.proto'];
 
       // Create proper ENOENT error
@@ -177,7 +170,7 @@ describe('DefaultImportResolver', () => {
     });
 
     it('should validate mixed valid and WKT imports', async () => {
-      const resolver = new DefaultImportResolver(baseDir, mockFileSystem);
+      const resolver = new ImportProcessor(baseDir, mockFileSystem);
       const imports = ['user/v1/user.proto', 'google/protobuf/empty.proto', 'common/v1/types.proto'];
 
       // Mock non-WKT files exist
@@ -187,77 +180,9 @@ describe('DefaultImportResolver', () => {
     });
   });
 
-  describe('createProtobufResolver', () => {
-    it('should return a function that resolves imports', () => {
-      const resolver = new DefaultImportResolver(baseDir, mockFileSystem);
-      const resolvePath = resolver.createProtobufResolver();
-
-      expect(typeof resolvePath).toBe('function');
-    });
-
-    it('should handle absolute paths in the resolver', () => {
-      const resolver = new DefaultImportResolver(baseDir, mockFileSystem);
-      const resolvePath = resolver.createProtobufResolver();
-
-      const absolutePath = path.join(fixturesDir, 'api/user/v1/user.proto');
-
-      // Mock file exists
-      mockedFs.existsSync.mockReturnValue(true);
-
-      const result = resolvePath('', absolutePath);
-      expect(result).toBe(absolutePath);
-    });
-
-    it('should throw for non-existent absolute paths', () => {
-      const resolver = new DefaultImportResolver(baseDir, mockFileSystem);
-      const resolvePath = resolver.createProtobufResolver();
-
-      const nonExistentPath = '/non/existent/file.proto';
-
-      // Mock file doesn't exist
-      mockedFs.existsSync.mockReturnValue(false);
-
-      expect(() => resolvePath('', nonExistentPath)).toThrow('Import not found: /non/existent/file.proto');
-    });
-
-    it('should resolve relative paths', () => {
-      const resolver = new DefaultImportResolver(baseDir, mockFileSystem);
-      const resolvePath = resolver.createProtobufResolver();
-
-      // Mock file exists in base directory
-      mockedFs.existsSync.mockReturnValue(true);
-
-      const result = resolvePath('', 'user/v1/user.proto');
-      expect(result).toBe(path.join(baseDir, 'user/v1/user.proto'));
-    });
-
-    it('should return original path for Google WKTs', () => {
-      const resolver = new DefaultImportResolver(baseDir, mockFileSystem);
-      const resolvePath = resolver.createProtobufResolver();
-
-      // Mock WKT doesn't exist locally
-      mockedFs.existsSync.mockReturnValue(false);
-
-      // For WKTs, if not found locally, should return the original path
-      // to let protobufjs handle it with internal definitions
-      const result = resolvePath('', 'google/protobuf/empty.proto');
-      expect(result).toBe('google/protobuf/empty.proto');
-    });
-
-    it('should throw for non-resolvable non-WKT imports', () => {
-      const resolver = new DefaultImportResolver(baseDir, mockFileSystem);
-      const resolvePath = resolver.createProtobufResolver();
-
-      // Mock file doesn't exist
-      mockedFs.existsSync.mockReturnValue(false);
-
-      expect(() => resolvePath('', 'non-existent.proto')).toThrow('Cannot resolve import: non-existent.proto');
-    });
-  });
-
   describe('isWellKnownType (indirectly via behavior)', () => {
     it('should handle google/protobuf/* paths specially', async () => {
-      const resolver = new DefaultImportResolver(baseDir, mockFileSystem);
+      const resolver = new ImportProcessor(baseDir, mockFileSystem);
 
       // These should be treated as WKTs
       const wktPaths = [
@@ -285,7 +210,7 @@ describe('DefaultImportResolver', () => {
     });
 
     it('should not treat other paths as WKTs', async () => {
-      const resolver = new DefaultImportResolver(baseDir, mockFileSystem);
+      const resolver = new ImportProcessor(baseDir, mockFileSystem);
 
       // These should NOT be treated as WKTs
       const nonWktPaths = [
@@ -314,7 +239,7 @@ describe('DefaultImportResolver', () => {
       const tempInclude2 = path.join(tempDir, 'include2');
       const file1 = path.join(tempInclude1, 'test.proto');
 
-      const resolver = new DefaultImportResolver('/base', mockFileSystem, {
+      const resolver = new ImportProcessor('/base', mockFileSystem, {
         includePaths: [tempInclude1, tempInclude2],
       });
 
@@ -330,7 +255,7 @@ describe('DefaultImportResolver', () => {
 
     it('should return null when well-known type cannot be resolved', async () => {
       const baseDir = '/test/base';
-      const resolver = new DefaultImportResolver(baseDir, mockFileSystem);
+      const resolver = new ImportProcessor(baseDir, mockFileSystem);
 
       // Use jest.spyOn instead of replacing global require - safer approach
       const requireResolveSpy = jest.spyOn(require, 'resolve').mockImplementation(() => {

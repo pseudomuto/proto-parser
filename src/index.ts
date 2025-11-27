@@ -14,7 +14,7 @@ export { ProtoSet } from './ProtoSet';
 // Export interfaces and default implementations
 export { ProtoParser } from './proto';
 export { DefaultFileSystem } from './DefaultFileSystem';
-export { DefaultImportResolver } from './resolvers';
+export { ImportProcessor, IImportProcessor } from './resolvers';
 
 // Export Buf-related utilities
 export { BufModuleProvider, BufModuleProviderError } from './buf';
