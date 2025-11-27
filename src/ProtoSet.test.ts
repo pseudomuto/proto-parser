@@ -262,7 +262,7 @@ describe('parseProtoDirectory', () => {
   });
 
   it('should throw error for non-existent directory', async () => {
-    await expect(parseProtoDirectory('./non-existent')).rejects.toThrow('Directory not found');
+    await expect(parseProtoDirectory('./non-existent')).rejects.toThrow(/Cannot access directory/);
   });
 
   it('should return empty ProtoSet for directory with no proto files', async () => {

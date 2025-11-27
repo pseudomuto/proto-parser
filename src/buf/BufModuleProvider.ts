@@ -125,9 +125,9 @@ export class BufModuleProvider implements ModuleProvider {
     for (const tempDir of this.#tempDirs) {
       try {
         await this.#fileSystem.rmdir(tempDir, { recursive: true });
-      } catch (error) {
+      } catch {
         // Ignore cleanup errors - temp files will be cleaned up by OS eventually
-        console.warn(`Warning: Failed to clean up temp directory ${tempDir}:`, error);
+        // Silently ignore as these are temporary files that OS will clean up
       }
     }
     this.#tempDirs = [];

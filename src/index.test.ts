@@ -9,12 +9,12 @@ describe('index - functional integration tests', () => {
       const protoContent = `
         syntax = "proto3";
         package test;
-        
+
         message User {
           string name = 1;
           int32 age = 2;
         }
-        
+
         service UserService {
           rpc GetUser(User) returns (User);
         }

@@ -19,7 +19,7 @@ A TypeScript library for parsing Protocol Buffer (.proto) files and generating u
 - 📚 **ProtoSet collections** - Manage and query multiple proto files as a unified set
 - ✨ **IDL Generation** - Generate unified proto IDL from multiple proto files with smart conflict resolution
 - 🔧 **Customizable output** - Control syntax version, package naming, and comment inclusion in generated IDL
-- ⚡ **Only 2 dependencies** - Built on `protobufjs` and `@grpc/proto-loader`
+- ⚡ **Only 1 dependency** - Built on `protobufjs`
 
 ### Supported Features
 
