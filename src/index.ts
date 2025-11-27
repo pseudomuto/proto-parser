@@ -12,7 +12,7 @@ export { parseProto, parseProtoDirectory } from './parser';
 export { ProtoSet } from './ProtoSet';
 
 // Export interfaces and default implementations
-export { DefaultContentProcessor } from './DefaultContentProcessor';
+export { ProtoParser } from './proto';
 export { DefaultFileSystem } from './DefaultFileSystem';
 export { DefaultImportResolver } from './resolvers';
 

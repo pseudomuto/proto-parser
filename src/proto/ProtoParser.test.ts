@@ -1,44 +1,44 @@
 import * as protobuf from 'protobufjs';
 
-import { DefaultContentProcessor } from './DefaultContentProcessor';
-import { joinNamespace } from './utils';
+import { joinNamespace } from '../utils';
+import { ProtoParser } from './ProtoParser';
 
-describe('DefaultContentProcessor', () => {
-  let contentProcessor: DefaultContentProcessor;
+describe('ProtoParser', () => {
+  let protoParser: ProtoParser;
 
   beforeEach(() => {
-    contentProcessor = new DefaultContentProcessor();
+    protoParser = new ProtoParser();
   });
   describe('parseFieldRule', () => {
     it('should return "repeated" for repeated fields', () => {
       const field = new protobuf.Field('test', 1, 'string');
       field.repeated = true;
-      expect(contentProcessor.parseFieldRule(field)).toBe('repeated');
+      expect(protoParser.parseFieldRule(field)).toBe('repeated');
     });
 
     it('should return "required" for required fields', () => {
       // Create field and manually set required (protobufjs specific)
       const field = new protobuf.Field('test', 1, 'string');
       Object.defineProperty(field, 'required', { value: true, writable: false });
-      expect(contentProcessor.parseFieldRule(field)).toBe('required');
+      expect(protoParser.parseFieldRule(field)).toBe('required');
     });
 
     it('should return "optional" for optional fields', () => {
       const field = new protobuf.Field('test', 1, 'string', 'optional');
-      expect(contentProcessor.parseFieldRule(field)).toBe('optional');
+      expect(protoParser.parseFieldRule(field)).toBe('optional');
     });
 
     it('should return "optional" for proto3 fields by default', () => {
       // In proto3, fields are optional by default
       const field = new protobuf.Field('test', 1, 'string');
-      expect(contentProcessor.parseFieldRule(field)).toBe('optional');
+      expect(protoParser.parseFieldRule(field)).toBe('optional');
     });
   });
 
   describe('parseField', () => {
     it('should parse a basic field', () => {
       const field = new protobuf.Field('name', 1, 'string');
-      const parsed = contentProcessor.parseField(field);
+      const parsed = protoParser.parseField(field);
 
       expect(parsed).toEqual({
         name: 'name',
@@ -57,7 +57,7 @@ describe('DefaultContentProcessor', () => {
       field.defaultValue = 42;
       field.repeated = true;
 
-      const parsed = contentProcessor.parseField(field);
+      const parsed = protoParser.parseField(field);
 
       expect(parsed).toEqual({
         name: 'count',
@@ -78,7 +78,7 @@ describe('DefaultContentProcessor', () => {
       // Add field to oneof - this sets up the partOf relationship correctly
       oneof.add(field);
 
-      const parsed = contentProcessor.parseField(field);
+      const parsed = protoParser.parseField(field);
       expect(parsed.oneofIndex).toBe(0);
     });
   });
@@ -92,14 +92,14 @@ describe('DefaultContentProcessor', () => {
         VALUE1: { deprecated: true },
       };
 
-      const parsed1 = contentProcessor.parseEnumValue('VALUE1', enumObj);
+      const parsed1 = protoParser.parseEnumValue('VALUE1', enumObj);
       expect(parsed1).toEqual({
         name: 'VALUE1',
         number: 0,
         options: { deprecated: true },
       });
 
-      const parsed2 = contentProcessor.parseEnumValue('VALUE2', enumObj);
+      const parsed2 = protoParser.parseEnumValue('VALUE2', enumObj);
       expect(parsed2).toEqual({
         name: 'VALUE2',
         number: 1,
@@ -116,7 +116,7 @@ describe('DefaultContentProcessor', () => {
       enumObj.add('INACTIVE', 2);
       enumObj.options = { allow_alias: true };
 
-      const parsed = contentProcessor.parseEnum(enumObj, 'api.v1');
+      const parsed = protoParser.parseEnum(enumObj, 'api.v1');
 
       expect(parsed).toEqual({
         name: 'Status',
@@ -139,7 +139,7 @@ describe('DefaultContentProcessor', () => {
       oneof.add(field1);
       oneof.add(field2);
 
-      const parsed = contentProcessor.parseOneof(oneof);
+      const parsed = protoParser.parseOneof(oneof);
 
       expect(parsed).toEqual({
         name: 'choice',
@@ -154,7 +154,7 @@ describe('DefaultContentProcessor', () => {
       messageType.add(new protobuf.Field('id', 1, 'string'));
       messageType.add(new protobuf.Field('name', 2, 'string'));
 
-      const parsed = contentProcessor.parseMessage(messageType, 'api.v1');
+      const parsed = protoParser.parseMessage(messageType, 'api.v1');
 
       expect(parsed.name).toBe('User');
       expect(parsed.namespace).toBe('api.v1');
@@ -178,7 +178,7 @@ describe('DefaultContentProcessor', () => {
       nestedEnum.add('ACTIVE', 1);
       messageType.add(nestedEnum);
 
-      const parsed = contentProcessor.parseMessage(messageType, 'api.v1');
+      const parsed = protoParser.parseMessage(messageType, 'api.v1');
 
       expect(parsed.name).toBe('Parent');
       expect(parsed.nestedMessages).toHaveLength(1);
@@ -198,7 +198,7 @@ describe('DefaultContentProcessor', () => {
       // Set extensions directly since it's a property we control
       messageType.extensions = [['extension_field', 100, 'string']];
 
-      const parsed = contentProcessor.parseMessage(messageType, 'api.v1');
+      const parsed = protoParser.parseMessage(messageType, 'api.v1');
 
       expect(parsed.extensions).toHaveLength(1);
       expect(parsed.extensions![0]).toEqual({
@@ -218,7 +218,7 @@ describe('DefaultContentProcessor', () => {
       oneof.add(field2);
       messageType.add(oneof);
 
-      const parsed = contentProcessor.parseMessage(messageType, '');
+      const parsed = protoParser.parseMessage(messageType, '');
 
       expect(parsed.oneofs).toHaveLength(1);
       expect(parsed.oneofs![0]).toEqual({
@@ -231,7 +231,7 @@ describe('DefaultContentProcessor', () => {
   describe('parseServiceMethod', () => {
     it('should parse simple RPC method', () => {
       const method = new protobuf.Method('GetUser', 'rpc', 'GetUserRequest', 'GetUserResponse');
-      const parsed = contentProcessor.parseServiceMethod(method);
+      const parsed = protoParser.parseServiceMethod(method);
 
       expect(parsed).toEqual({
         name: 'GetUser',
@@ -249,7 +249,7 @@ describe('DefaultContentProcessor', () => {
       method.responseStream = true;
       method.options = { deprecated: true };
 
-      const parsed = contentProcessor.parseServiceMethod(method);
+      const parsed = protoParser.parseServiceMethod(method);
 
       expect(parsed).toEqual({
         name: 'Subscribe',
@@ -268,7 +268,7 @@ describe('DefaultContentProcessor', () => {
       service.add(new protobuf.Method('GetUser', 'rpc', 'GetUserRequest', 'GetUserResponse'));
       service.add(new protobuf.Method('ListUsers', 'rpc', 'ListUsersRequest', 'ListUsersResponse'));
 
-      const parsed = contentProcessor.parseService(service, 'api.v1');
+      const parsed = protoParser.parseService(service, 'api.v1');
 
       expect(parsed).toEqual({
         name: 'UserService',
@@ -292,111 +292,6 @@ describe('DefaultContentProcessor', () => {
           },
         ],
       });
-    });
-  });
-
-  describe('collectAllMessages', () => {
-    it('should collect messages from nested namespaces', () => {
-      const root = new protobuf.Root();
-      const namespace = root.define('api.v1');
-
-      const message1 = new protobuf.Type('User');
-      message1.add(new protobuf.Field('id', 1, 'string'));
-      namespace.add(message1);
-
-      const nestedNamespace = namespace.define('admin');
-      const message2 = new protobuf.Type('AdminUser');
-      message2.add(new protobuf.Field('role', 1, 'string'));
-      nestedNamespace.add(message2);
-
-      const messages = contentProcessor.collectAllMessages(root);
-
-      expect(messages).toHaveLength(2);
-      expect(messages[0].name).toBe('User');
-      expect(messages[0].namespace).toBe('api.v1');
-      expect(messages[1].name).toBe('AdminUser');
-      expect(messages[1].namespace).toBe('api.v1.admin');
-    });
-
-    it('should not collect services or standalone enums as messages', () => {
-      const root = new protobuf.Root();
-      const namespace = root.define('api');
-
-      const message = new protobuf.Type('Message');
-      namespace.add(message);
-
-      const service = new protobuf.Service('TestService');
-      namespace.add(service);
-
-      const enumObj = new protobuf.Enum('Status');
-      namespace.add(enumObj);
-
-      const messages = contentProcessor.collectAllMessages(root);
-
-      expect(messages).toHaveLength(1);
-      expect(messages[0].name).toBe('Message');
-    });
-  });
-
-  describe('collectAllEnums', () => {
-    it('should collect enums from all namespaces', () => {
-      const root = new protobuf.Root();
-      const namespace = root.define('api.v1');
-
-      const enum1 = new protobuf.Enum('Status');
-      enum1.add('UNKNOWN', 0);
-      namespace.add(enum1);
-
-      const nestedNamespace = namespace.define('types');
-      const enum2 = new protobuf.Enum('Priority');
-      enum2.add('LOW', 0);
-      nestedNamespace.add(enum2);
-
-      const enums = contentProcessor.collectAllEnums(root);
-
-      expect(enums).toHaveLength(2);
-      expect(enums[0].name).toBe('Status');
-      expect(enums[0].namespace).toBe('api.v1');
-      expect(enums[1].name).toBe('Priority');
-      expect(enums[1].namespace).toBe('api.v1.types');
-    });
-  });
-
-  describe('collectAllServices', () => {
-    it('should collect services from all namespaces', () => {
-      const root = new protobuf.Root();
-      const namespace = root.define('api.v1');
-
-      const service1 = new protobuf.Service('UserService');
-      namespace.add(service1);
-
-      const nestedNamespace = namespace.define('admin');
-      const service2 = new protobuf.Service('AdminService');
-      nestedNamespace.add(service2);
-
-      const services = contentProcessor.collectAllServices(root);
-
-      expect(services).toHaveLength(2);
-      expect(services[0].name).toBe('UserService');
-      expect(services[0].namespace).toBe('api.v1');
-      expect(services[1].name).toBe('AdminService');
-      expect(services[1].namespace).toBe('api.v1.admin');
-    });
-
-    it('should not collect messages or types as services', () => {
-      const root = new protobuf.Root();
-      const namespace = root.define('api');
-
-      const service = new protobuf.Service('RealService');
-      namespace.add(service);
-
-      const message = new protobuf.Type('NotAService');
-      namespace.add(message);
-
-      const services = contentProcessor.collectAllServices(root);
-
-      expect(services).toHaveLength(1);
-      expect(services[0].name).toBe('RealService');
     });
   });
 
