@@ -5,7 +5,7 @@ This example demonstrates how to use the `BufModuleProvider` to integrate with B
 ## What this example shows
 
 1. **Module Preloading**: Download and extract Buf modules to temporary directories
-2. **Import Resolution**: Integrate preloaded modules with `DefaultImportResolver`
+2. **Import Resolution**: Integrate preloaded modules with `ImportProcessor`
 3. **Parsing**: Parse proto files that import from Buf modules
 4. **Error Handling**: Handle authentication and network errors gracefully
 5. **Cleanup**: Properly clean up temporary directories
@@ -33,7 +33,7 @@ The example demonstrates the modern interface-driven architecture:
 
 1. **BufModuleProvider** downloads modules as raw proto files (no FileDescriptorSet reconstruction)
 2. **DefaultFileSystem** provides file system operations 
-3. **DefaultImportResolver** handles import resolution with preloaded module directories
+3. **ImportProcessor** handles import resolution with preloaded module directories
 4. **parseProto** uses the resolver to parse files with all dependencies available
 
 ## Buf modules used

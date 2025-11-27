@@ -9,6 +9,7 @@ import { ProtoBuildError, ProtoParseError, getErrorMessage, isNodeError } from '
 import { collectProtoDefinitions } from './proto';
 import { DirectoryParseOptions, FileSystem, IProtoParser, ParseOptions, Proto, ResolvedParseOptions } from './types';
 import { getProtoDirectory } from './utils';
+import { isWellKnownType } from './utils/wellKnownTypes';
 
 /**
  * Options for building Proto result objects
@@ -101,6 +102,42 @@ const validateProtoImports = async (
   }
 
   return tempParsed;
+};
+
+/**
+ * Creates a protobufjs-compatible resolver function from resolved options.
+ * This adapts the async import processor interface to protobufjs's synchronous resolver interface.
+ */
+const createProtobufResolver = (
+  resolvedOptions: ResolvedParseOptions,
+): ((origin: string, target: string) => string) => {
+  return (_origin: string, target: string): string => {
+    if (path.isAbsolute(target)) {
+      if (!fs.existsSync(target)) {
+        throw new Error(`Import not found: ${target}`);
+      }
+      return target;
+    }
+
+    // Get include paths from the import resolver using the interface method
+    const includePaths = resolvedOptions.importResolver.getIncludePaths();
+
+    // Search through include paths first (even for google/protobuf files)
+    // This ensures we use the complete versions from Buf modules
+    for (const searchPath of includePaths) {
+      const fullPath = path.join(searchPath, target);
+      if (fs.existsSync(fullPath)) {
+        return fullPath;
+      }
+    }
+
+    // Only fall back to well-known types if not found in include paths
+    if (isWellKnownType(target)) {
+      return target;
+    }
+
+    throw new Error(`Cannot resolve import: ${target}`);
+  };
 };
 
 /**
@@ -199,7 +236,7 @@ const parseProtoContent = async (
 
   // Create root with import resolver
   const root = new protobuf.Root();
-  root.resolvePath = resolvedOptions.importResolver.createProtobufResolver();
+  root.resolvePath = createProtobufResolver(resolvedOptions);
 
   // Process all imported files
   const importedProtos = await processAllImports(tempParsed.imports, root, resolvedOptions);

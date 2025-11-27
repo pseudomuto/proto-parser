@@ -1,6 +1,6 @@
 import { DefaultFileSystem } from './DefaultFileSystem';
 import { ProtoParser } from './proto';
-import { DefaultImportResolver } from './resolvers/DefaultImportResolver';
+import { ImportProcessor } from './resolvers/ImportProcessor';
 import { ParseOptions, ResolvedParseOptions } from './types';
 
 /**
@@ -22,7 +22,7 @@ export function createDefaultParseOptions(baseDir: string, options: ParseOptions
     defaults: options.defaults !== false,
     oneofs: options.oneofs !== false,
     contentProcessor: options.contentProcessor || new ProtoParser(),
-    importResolver: options.importResolver || new DefaultImportResolver(baseDir, fileSystem, options),
+    importResolver: options.importResolver || new ImportProcessor(baseDir, fileSystem, options),
     fileSystem,
   };
 }
